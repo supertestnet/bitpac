@@ -17,6 +17,10 @@ Basically there's this ethereum "dao" called sushiswap. They got sued by the SEC
 
 I thought that was pretty stupid, but I liked the voting part. Voting on expenditures doesn't make you a dao (in my opinion), but it's still pretty neat. So I made this tool so that bitcoiners can do something similar. Create a multisig by selecting people's profiles from nostr, pick a threshold of how many votes are needed to move the money, and the result you get is a public page where any keyholder can propose how they'd like to spend the money. Every voter gets to accept or reject that proposal, and voila! It's like what sushiswap did except on bitcoin.
 
+# So this is nothing more and nothing less than a multisig. Why didn't you just call this a multisig?
+
+A bitpac is a multisig with *public auditability.* Multisigs are usually private -- you normally don't disclose who's in them. With bitpac, you do. But if you just want to just call it a multisig that's fine with me.
+
 # Todo list
 
 - [ ] Make proposals disappear if enough people reject them
