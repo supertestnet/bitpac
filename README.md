@@ -26,7 +26,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [ ] Make proposals disappear if enough people reject them
 - [ ] Make proposals disappear if too much time goes by
 - [ ] Improve the user interface
-- [ ] Let people transfer their voting rights to someone else
+- [ ] Let keyholders transfer or sell their voting rights
 - [ ] Add more items to this todo list
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
