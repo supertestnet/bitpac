@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no">
+        <title>bitpac | vote with bitcoin</title>
+        <script src="https://supertestnet.github.io/bitcoin-chess/js/bitcoinjs-lib.js"></script>
+        <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
+        <script src="https://unpkg.com/@cmdcode/tapscript"></script>
+        <script src="https://bundle.run/bech32@2.0.0"></script>
+        <script src="https://bundle.run/buffer@6.0.3"></script>
+        <script>var Buffer = buffer.Buffer;</script>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-size: 1.15rem;
+                font-family: Arial, sans-serif;
+            }
+            html {
+                max-width: 70ch;
+                padding: 3rem 1rem;
+                margin: auto;
+                line-height: 1.25;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            input {
+                line-height: 1.25;
+                width: 100%;
+                height: 1.8rem;
+                font-size: 1.15rem;
+                border: 1px solid grey;
+            }
+            .multisig_viewer {
+                display: none;
+            }
+            .select_npub, .output_addy, .output_amt {
+                display: inline-block;
+                width: calc( 100% - 2.5rem );
+                margin-bottom: 1rem;
+                margin-right: .5rem;
+            }
+            .output_addy, .output_amt {
+                width: calc( 50% - 1.5rem );
+            }
+            .proposal_div {
+                margin-bottom: 1rem;
+            }
+            .proposed_output, .proposed_amt {
+                width: calc( 50% - .5rem );
+                background-color: #bbbbbb;
+            }
+            .plus_button, .minus_button, .output_plus_button {
+                display: inline-block;
+                border: 1px solid grey;
+                padding: 0px 5px;
+                cursor: pointer;
+                width: 2rem;
+                text-align: center;
+                vertical-align: top;
+                height: 1.8rem;
+                line-height: 1.8rem;
+            }
+            .minus_button, .crafter, .approve_or_deny {
+                display: none;
+                margin-bottom: 1rem;
+            }
+            .profile {
+                display: inline-block;
+                vertical-align: middle;
+            }
+            @media screen and (max-width: 600px) {
+                .output_addy, .output_amt, .proposed_output, .proposed_amt {
+                    width: 100%;
+                }
+            }
+        </style>
+        <script>
+            var $ = document.querySelector.bind( document );
+            var $$ = document.querySelectorAll.bind( document );
+            var url_params = new URLSearchParams( window.location.search );
+            var url_keys = url_params.keys();
+            var $_GET = {}
+            for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
+        </script>
+        <script>
+            var mempoolnet = "testnet";
+            var mempoolNetwork = "testnet/"; //mainnet: "" | signet: "signet/"
+            if ( $_GET[ "network" ] == "testnet" ) {
+                mempoolNetwork = "testnet/";
+                mempoolnet = "testnet";
+            }
+            if ( $_GET[ "network" ] == "signet" ) {
+                mempoolNetwork = "signet/";
+                mempoolnet = "testnet"; //this one is identical for testnet and signet
+            }
+            if ( $_GET[ "network" ] == "mainnet" ) {
+                mempoolNetwork = "";
+                mempoolnet = "mainnet";
+            }
+            if ( $_GET[ "network" ] == "regtest" ) {
+                mempoolNetwork = "";
+                mempoolnet = "regtest";
+            }
+            sessionStorage.clear();
+            var relays = {
+                'wss://relay.nostr.bg/': null,
+                'wss://relay.nostr.band/': null,
+                'wss://nos.lol/': null,
+                'wss://relay.damus.io': null
+            }
+            var getting_info_for = [];
+            var threshold = null;
+            var sigs = {}
+            var sha256  = bitcoinjs.crypto.sha256;
+            var { getSharedSecret, schnorr, utils } = nobleSecp256k1;
+            var bytesToHex = ( bytes ) => {return bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );}
+            if ( !$_GET[ "multisig" ] ) {
+                var privKey = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() );
+                var pubKey = nobleSecp256k1.getPublicKey( privKey, true ).substring( 2 );
+            } else {
+                var multisig = null;
+            }
+            function addNpub( element ) {
+                if ( $$( '.select_npub' ).length >= 67 ) {
+                    alert( "max number of keys for the multisig is 67" );
+                    return;
+                }
+                if ( element && $$( '.select_npub' ).length < 67 ) {
+                    element.previousElementSibling.style.display = "inline-block";
+                }
+                if ( $( '.plus_button' ) ) {
+                    $( '.plus_button' ).remove();
+                }
+                var input = document.createElement( "input" );
+                input.type = "text";
+                var identifier = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() );
+                input.className = `select_npub npub_${identifier}`;
+                input.onchange = (i) => {
+                    var npub = i.srcElement.value;
+                    var identifier = i.srcElement.classList[ 1 ].substring( 5 );
+                    if ( getting_info_for.includes( JSON.stringify( [ npub, identifier ] ) ) ) return;
+                    getting_info_for.push( JSON.stringify( [ npub, identifier ] ) );
+                    getCounterpartyInfo( npub, identifier );
+                }
+                input.onkeyup = (i) => {
+                    var npub = i.srcElement.value;
+                    var identifier = i.srcElement.classList[ 1 ].substring( 5 );
+                    if ( getting_info_for.includes( JSON.stringify( [ npub, identifier ] ) ) ) return;
+                    getting_info_for.push( JSON.stringify( [ npub, identifier ] ) );
+                    getCounterpartyInfo( npub, identifier );
+                }
+                $( '.select_npubs' ).append( input );
+                var minus = document.createElement( "div" );
+                minus.className = "minus_button";
+                minus.setAttribute( "data-identifier", identifier );
+                minus.innerText = "-";
+                minus.onclick = function() {
+                    this.previousElementSibling.remove();
+                    this.remove();
+                    $( `.profile_${this.getAttribute( "data-identifier" )}` ).remove();
+                    $( '.multisig_num' ).innerText = $$( '.select_npub' ).length;
+                    if ( Number( $( '.select_threshold' ).value ) > $$( '.select_npub' ).length ) $( '.select_threshold' ).value = $$( '.select_npub' ).length;
+                    $( '.threshold_num' ).innerText = $( '.select_threshold' ).value;
+                }
+                $( '.select_npubs' ).append( minus );
+                var plus = document.createElement( "div" );
+                plus.className = "plus_button";
+                plus.innerText = "+";
+                plus.onclick = function() {addNpub( this );}
+                $( '.select_npubs' ).append( plus );
+                var profile = document.createElement( "div" );
+                profile.className = `profile profile_${identifier}`;
+                profile.innerHTML = `
+                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                `;
+                $( '.nostr_profiles' ).append( profile );
+                $( '.multisig_num' ).innerText = $$( '.select_npub' ).length;
+                if ( Number( $( '.select_threshold' ).value ) > $$( '.select_npub' ).length ) $( '.select_threshold' ).value = $$( '.select_npub' ).length;
+                $( '.threshold_num' ).innerText = $( '.select_threshold' ).value;
+            }
+            async function getCounterpartyInfo( npub, identifier ) {
+                var div_to_get = `.profile_${identifier}`;
+                if ( !npub ) {
+                    npub = $( div_to_get ).getAttribute( "data-npub" );
+                    $( div_to_get ).innerHTML = `
+                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                    `;
+                    getting_info_for.splice( getting_info_for.indexOf( JSON.stringify( [ npub, identifier ] ) ), 1 );
+                    return;
+                }
+                sessionStorage[ identifier ] = npub;
+                sessionStorage[ "identifier" ] = identifier;
+                sessionStorage[ "npub" ] = npub;
+                var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                    var myrelay = Object.keys( relays )[ i ];
+                    relays[ myrelay ] = new WebSocket( myrelay );
+                    await waitSomeSeconds( 0.3 );
+                    relays[ myrelay ].addEventListener( "message", handleMessage );
+                    var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
+                    var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ] }
+                    var subscription = [ "REQ", subId, filter ];
+                    relays[ myrelay ].addEventListener( "open", async () => {
+                        relays[ myrelay ].send( JSON.stringify( subscription ) );
+                        await waitSomeSeconds( 1 );
+                        relays[ myrelay ].close();
+                    });
+                }
+            }
+            function pubkeyFromNpub(npub) {
+                return Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(npub).words)).toString("hex");
+            }
+            function pubkeyToNpub(hex) {
+                return bech32.bech32.encode("npub", bech32.bech32.toWords(Buffer.from(hex, "hex")));
+            }
+            function privkeyFromNsec( nsec ) {
+                return Buffer.from( bech32.bech32.fromWords( bech32.bech32.decode( nsec ).words ) ).toString( "hex" );
+            }
+            var isValidNpub = (npub) => {
+                try {
+                    var pubkey = pubkeyFromNpub( npub );
+                    return true;
+                } catch( e ) {
+                    return;
+                }
+            }
+            var handleMessage = async ( message ) => {
+                var [ type, subId, event ] = JSON.parse( message.data );
+                var { kind, content } = event || {}
+                if ( !event || event === true ) return;
+                // console.log('message:', event);
+                if ( kind === 4 ) {
+                    content = await decrypt(privKey, event.pubkey, content);
+                }
+                if ( kind === 0 ) {
+                    if ( $_GET[ "multisig" ] ) {
+                        var i; for ( i=0; i<67; i++ ) {
+                            if ( i > $$( ".profile" ).length - 1 ) continue;
+                            var div_to_get = `.profile_${event.pubkey}_${i}`;
+                            if ( !$( div_to_get ) ) continue;
+                            $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
+                            $( div_to_get ).firstElementChild.style.display = "inline-block";
+                            $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
+                            $( `${div_to_get} .pic` ).src = JSON.parse( content )[ "picture" ];
+                        }
+                    } else {
+                        var div_to_get = `.profile_${sessionStorage[ "identifier" ]}`;
+                        $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
+                        $( div_to_get ).firstElementChild.style.display = "inline-block";
+                        $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
+                        $( `${div_to_get} .pic` ).src = JSON.parse( content )[ "picture" ];
+                    }
+                }
+                if ( kind === 2858 ) {
+                    if ( multisig ) return;
+                    var bitpac = JSON.parse( content );
+                    bitpac_name = bitpac[ 0 ];
+                    multisig = bitpac[ 1 ];
+                    var temp_multisig = [...multisig];
+                    threshold = temp_multisig[ 0 ];
+                    temp_multisig.splice( 0, 1 );
+                    var script = [0];
+                    temp_multisig.forEach( item => {
+                        script.push( item, "OP_CHECKSIGADD" );
+                    });
+                    var pubkey = "ab".repeat( 32 );
+                    script.push( threshold, "OP_EQUAL" );
+                    // console.log( "script:", script );
+                    var sbytes = tapscript.Script.encode( script );
+                    var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                    var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                    var multisig_address = tapscript.Address.p2tr.fromPubKey( tpubkey, mempoolnet );
+                    console.log( "multisig address:", multisig_address );
+                    var html = `
+                        <div class="bitpac_info">
+                            Bitpac name: ${bitpac_name}<br>
+                            Balance (usd): <span class="bitpac_balance">0</span><br>
+                            Balance (sats): <span class="bitpac_balance_sats">0</span><br>
+                            Policy: ${threshold} out of ${temp_multisig.length}
+                        </div>
+                        <p>Members:</p>
+                        <div class="nostr_profiles"></div>
+                        <p>Address: <span class="addy">${multisig_address}</span></p>
+                        <p style="font-weight: bold;">Proposals</p>
+                        <div class="proposals">
+                            <p class="none_currently">None currently</p>
+                        </div>
+                        <div class="crafter">
+                            <p style="font-weight: bold;">Craft a proposal</p>
+                            <p>Briefly describe your proposal</p>
+                            <p><input class="proposal_desc"></p>
+                            <p>How do you want to spend the money?</p>
+                            <div class="spend_info">
+                                Balance (usd): <span class="bitpac_balance">0</span><br>
+                                Balance (sats): <span class="bitpac_balance_sats">0</span>
+                                <br><br>
+                            </div>
+                            <div class="add_outputs"></div>
+                            <p><button class="craft_proposal">Submit</button></p>
+                        </div>
+                        <div class="login_form">
+                            <p>Log into this bitpac to make or vote on a proposal</p>
+                            <p><button class="login_btn">Log in</button></p>
+                        </div>
+                    `;
+                    var div = document.createElement( "div" );
+                    div.innerHTML = html;
+                    $( '.multisig_viewer' ).append( div );
+                    $( '.login_btn' ).onclick = () => {
+                        var nsec = prompt( "Enter your nsec" );
+                        var myprivkey = privkeyFromNsec( nsec );
+                        var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
+                        if ( !multisig.includes( mypubkey ) ) {
+                            alert( "Sorry, it looks like you are not a keyholder in this bitpac" );
+                            return;
+                        }
+                        sessionStorage[ "myprivkey" ] = myprivkey;
+                        sessionStorage[ "mypubkey" ] = mypubkey;
+                        $( '.crafter' ).style.display = "block";
+                        $$( '.approve_or_deny' ).forEach( item => {
+                            item.style.display = "block";
+                        });
+                        $( '.login_form' ).style.display = "none";
+                        Object.keys( sigs ).forEach( item => {
+                            Object.keys( sigs[ item ] ).forEach( item2 => {
+                                if ( item2 == sessionStorage[ "mypubkey" ] ) {
+                                    $( `.proposal_${item} .deny` ).disabled = true;
+                                }
+                            });
+                        });
+                    }
+                    var utxos = await getUTXOs( $( '.addy' ).innerText );
+                    sessionStorage[ "utxos" ] = JSON.stringify( utxos );
+                    var full_balance = 0;
+                    utxos.forEach( item => {
+                        full_balance = full_balance + item[ 2 ];
+                    });
+                    var usd_balance = await satsToDollars( full_balance );
+                    usd_balance = usd_balance.toFixed( 2 );
+                    $( '.bitpac_balance' ).innerText = usd_balance;
+                    $$( '.bitpac_balance' )[ 1 ].innerText = usd_balance;
+                    $( '.bitpac_balance_sats' ).innerText = full_balance;
+                    $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
+                    $( '.craft_proposal' ).onclick = spendCoins;
+                    var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                        var item = temp_multisig[ i ];
+                        var profile = document.createElement( "div" );
+                        profile.className = `profile profile_${item}_${i}`;
+                        profile.innerHTML = `
+                            <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                        `;
+                        $$( '.nostr_profiles' )[ 1 ].append( profile );
+                    }
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var myrelay = Object.keys( relays )[ i ];
+                        var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
+                        var filter = { authors: temp_multisig, kinds: [ 0 ] }
+                        var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ] }
+                        var subscription = [ "REQ", subId, filter, filter2 ];
+                        await waitSomeSeconds( 2 );
+                        relays[ myrelay ].send( JSON.stringify( subscription ) );
+                    }
+                    addOutput();
+                }
+                if ( kind === 2859 ) {
+                    if ( $( `.proposal_${event.id}` ) ) return;
+                    var proposal = JSON.parse( content );
+                    var html = `
+                        <p class="proposal_name" style="font-weight: bold;"></p>
+                    `;
+                    var div = document.createElement( "div" );
+                    div.innerHTML = html;
+                    div.className = `proposal_div proposal_${event.id}`;
+                    div.style = "border: 1px solid black; border-radius: 1rem; padding: 1rem;"
+                    div.getElementsByClassName( "proposal_name" )[ 0 ].innerText = proposal[ 0 ];
+                    var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
+                    var to_amount_with_change = 0;
+                    var to_amount_without_change = 0;
+                    //ensure the input(s) exist in our utxo set
+                    var input_utxo_is_ours = false;
+                    var utxos = JSON.parse( sessionStorage[ "utxos" ] );
+                    var stringified_utxos = [];
+                    utxos.forEach( item => {
+                        stringified_utxos.push( JSON.stringify( item ) );
+                    });
+                    proposal[ 1 ].every( item => {
+                        var txid = item[ "txid" ];
+                        var vout = item[ "vout" ];
+                        var amt = item[ "prevout" ][ "value" ];
+                        var stringified_input = JSON.stringify( [txid, vout, amt] );
+                        if ( stringified_utxos.includes( stringified_input ) ) {
+                            input_utxo_is_ours = true;
+                            return;
+                        }
+                        return true;
+                    });
+                    if ( !input_utxo_is_ours ) return;
+                    $( '.none_currently' ).style.display = "none";
+                    proposal[ 2 ].forEach( ( item, index ) => {
+                        to_amount_with_change = to_amount_with_change + item.value;
+                        if ( index == proposal[ 2 ].length - 1 ) return;
+                        to_amount_without_change = to_amount_without_change + item.value;
+                        var div2 = document.createElement( "div" );
+                        div2.innerHTML = `
+                            <p><input class="output_addy proposed_output" disabled><input class="output_amt proposed_amt" disabled></p>
+                        `;
+                        div2.getElementsByClassName( "output_addy" )[ 0 ].value = tapscript.Address.fromScriptPubKey( item.scriptPubKey, mempoolnet );
+                        div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
+                        div.append( div2 );
+                    });
+                    var needed_change_amount = to_amount_with_change - to_amount_without_change;
+                    var fee_amount = from_amount - to_amount_with_change;
+                    var proposed_change_amount = proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "value" ];
+                    if ( proposed_change_amount != needed_change_amount ) return;
+                    var proposed_change_address = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] );
+                    var needed_change_address = tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) );
+                    if ( proposed_change_address != needed_change_address ) return;
+                    var fee = document.createElement( "div" );
+                    fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
+                    div.append( fee );
+                    var buttons = document.createElement( "div" );
+                    buttons.className = "approve_or_deny";
+                    buttons.innerHTML = `<p><button class="approve approve_${event.id}">Approve</button> <button class="deny deny_${event.id}">Deny</button></p>`;
+                    div.append( buttons );
+                    var inputs_and_outputs = document.createElement( "div" );
+                    inputs_and_outputs.style = "display: none;";
+                    inputs_and_outputs.innerHTML = `
+                        <div class="inputs"></div>
+                        <div class="outputs"></div>
+                    `;
+                    inputs_and_outputs.getElementsByClassName( "inputs" )[ 0 ].innerText = JSON.stringify( proposal[ 1 ] );
+                    inputs_and_outputs.getElementsByClassName( "outputs" )[ 0 ].innerText = JSON.stringify( proposal[ 2 ] );
+                    div.append( inputs_and_outputs );
+                    div.getElementsByClassName( "deny" )[ 0 ].onclick = async () => {
+                        var seckey = sessionStorage[ "myprivkey" ];
+                        var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
+                        var reply = {
+                            "content"    : "",
+                            "created_at" : Math.floor( Date.now() / 1000 ),
+                            "kind"       : 2860,
+                            "tags"       : [ [ "e", event.id ] ],
+                            "pubkey"     : pubKey,
+                        }
+                        var signedEvent = await getSignedEvent(reply, seckey);
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                            var myrelay = Object.keys( relays )[ i ];
+                            relays[ myrelay ] = new WebSocket( myrelay );
+                            relays[ myrelay ].addEventListener( "open", async () => {
+                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                                await waitSomeSeconds( 1 );
+                                relays[ myrelay ].close();
+                            });
+                        }
+                        console.log( "denied!" );
+                        window.location.reload();
+                    }
+                    div.getElementsByClassName( "approve" )[ 0 ].onclick = async () => {
+                        var inputs = proposal[ 1 ];
+                        var outputs = proposal[ 2 ];
+                        var txdata = tapscript.Tx.create({
+                          vin  : inputs,
+                          vout : outputs
+                        });
+                        var seckey = sessionStorage[ "myprivkey" ];
+                        var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
+                        var temp_multisig = [...multisig];
+                        var threshold = temp_multisig[ 0 ];
+                        temp_multisig.splice( 0, 1 );
+                        var script = [0];
+                        temp_multisig.forEach( item => {
+                            script.push( item, "OP_CHECKSIGADD" );
+                        });
+                        var pubkey = "ab".repeat( 32 );
+                        script.push( threshold, "OP_EQUAL" );
+                        var sbytes = tapscript.Script.encode( script );
+                        var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                        var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                        var sig = tapscript.Signer.taproot.sign(seckey, txdata, 0, { extension: tapleaf });
+                        // txdata.vin[0].witness = [ "", sig.hex, sig.hex, script, cblock ];
+                        // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
+                        // console.log( "valid:", isValid );
+                        // console.log( "txhex:", tapscript.Tx.encode( txdata ).hex );
+                        var reply = {
+                            "content"    : sig.hex,
+                            "created_at" : Math.floor( Date.now() / 1000 ),
+                            "kind"       : 2860,
+                            "tags"       : [ [ "e", event.id ] ],
+                            "pubkey"     : pubKey,
+                        }
+                        var signedEvent = await getSignedEvent(reply, seckey);
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                            var myrelay = Object.keys( relays )[ i ];
+                            relays[ myrelay ] = new WebSocket( myrelay );
+                            relays[ myrelay ].addEventListener( "open", async () => {
+                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                                await waitSomeSeconds( 1 );
+                                relays[ myrelay ].close();
+                            });
+                        }
+                        console.log( "approved!" );
+                        window.location.reload();
+                    }
+                    var sigs_obtained = document.createElement( "div" );
+                    sigs_obtained.innerHTML = `
+                        <div>
+                            Approvals: <span class="sigs_obtained">0</span><br>
+                            Denials: <span class="denys_obtained">0</span><br>
+                            Approvals needed to send the money: ${threshold}<br>
+                            Denials needed to block approval: ${( $$( '.profile' ).length - threshold ) + 1}<br>
+                            Number of respondants so far: <span class="respondants_num">0</span>
+                        </div>
+                    `;
+                    div.append( sigs_obtained );
+                    $( '.proposals' ).append( div );
+                    if ( sessionStorage[ "myprivkey" ] ) {
+                        $$( '.approve_or_deny' ).forEach( item => {
+                            item.style.display = "block";
+                        });
+                    }
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var myrelay = Object.keys( relays )[ i ];
+                        var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
+                        var filter = { authors: temp_multisig, kinds: [ 2860 ], "#e": [ event.id ] }
+                        var subscription = [ "REQ", subId, filter ];
+                        await waitSomeSeconds( 1 );
+                        relays[ myrelay ].send( JSON.stringify( subscription ) );
+                    }
+                }
+                if ( kind === 2860 ) {
+                    var temp_multisig = [...multisig];
+                    threshold = temp_multisig[ 0 ];
+                    temp_multisig.splice( 0, 1 );
+                    var proposal = event.tags[ 0 ][ 1 ];
+                    if ( !content ) {
+                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .approve` ).disabled = true;
+                        $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
+                    } else {
+                        if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
+                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .deny` ).disabled = true;
+                        sig = content;
+                        var sig_exists_already = false;
+                        Object.keys( sigs[ proposal ] ).every( item => {
+                            if ( item == event.pubkey ) {
+                                sig_exists_already = true;
+                                return;
+                            }
+                            return true;
+                        });
+                        if ( sig_exists_already ) return;
+                        //todo: validate the sig
+                        sigs[ proposal ][ event.pubkey ] = sig;
+                        $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
+                        if ( Object.keys( sigs[ proposal ] ).length == threshold ) {
+                            //put sigs in reverse order of multisig keys
+                            var sigs_array = [];
+                            temp_multisig.reverse();
+                            temp_multisig.forEach( item => {
+                                if ( Object.keys( sigs[ proposal ] ).includes( item ) ) {
+                                    sigs_array.push( sigs[ proposal ][ item ] );
+                                } else {
+                                    sigs_array.push( "" );
+                                }
+                            });
+                            var sig_counter = 0;
+                            sigs_array.forEach( (item, index) => {
+                                if ( sig_counter == threshold ) sigs_array[ index ] = "";
+                                if ( sigs_array[ index ] ) {
+                                    sig_counter = sig_counter + 1;
+                                }
+                            });
+                            console.log( "sigs array:", sigs_array );
+                            var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
+                            var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
+                            var txdata = tapscript.Tx.create({
+                              vin  : inputs,
+                              vout : outputs
+                            });
+                            var script = [0];
+                            temp_multisig.reverse();
+                            temp_multisig.forEach( item => {
+                                script.push( item, "OP_CHECKSIGADD" );
+                            });
+                            var pubkey = "ab".repeat( 32 );
+                            script.push( threshold, "OP_EQUAL" );
+                            var sbytes = tapscript.Script.encode( script );
+                            var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                            var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                            txdata.vin[0].witness = [ ...sigs_array, script, cblock ];
+                            // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
+                            // console.log( "valid:", isValid );
+                            alert( `The transaction was approved! Go broadcast it:\n\n${tapscript.Tx.encode( txdata ).hex}` );
+                        }
+                    }
+                }
+            }
+            function waitSomeSeconds(num) {
+                var num = num.toString() + "000";
+                num = Number(num);
+                return new Promise(resolve => setTimeout(resolve, num));
+            }
+            function prepend(value, array) {
+              var newArray = array.slice();
+              newArray.unshift(value);
+              return newArray;
+            }
+            async function getSignedEvent(event, privateKey) {
+                var eventData = JSON.stringify([
+                    0,                  // Reserved for future use
+                    event['pubkey'],        // The sender's public key
+                    event['created_at'],    // Unix timestamp
+                    event['kind'],      // Message “kind” or type
+                    event['tags'],      // Tags identify replies/recipients
+                    event['content']        // Your note contents
+                ])
+                event.id  = sha256( eventData ).toString( 'hex' );
+                event.sig = await schnorr.sign( event.id, privateKey );
+                return event;
+            }
+            var spendCoins = async () => {
+                // var txid = prompt( "Enter a txid" );
+                // var vout = prompt( "And a vout" );
+                // vout = Number( vout );
+                // var amt = prompt( "And an amount of sats" );
+                // amt = Number( amt );
+                var temp_multisig = [...multisig];
+                var threshold = temp_multisig[ 0 ];
+                temp_multisig.splice( 0, 1 );
+                var script = [0];
+                temp_multisig.forEach( item => {
+                    script.push( item, "OP_CHECKSIGADD" );
+                });
+                var pubkey = "ab".repeat( 32 );
+                script.push( threshold, "OP_EQUAL" );
+                var sbytes = tapscript.Script.encode( script );
+                var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                // console.log( "tapleaf:", tapleaf );
+                // console.log( "next:", tapscript.Tap.getPubKey(pubkey, { target: tapleaf }) );
+                var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                var utxos = JSON.parse( sessionStorage[ "utxos" ] );
+                var inputs = [];
+                var from_amount = 0;
+                utxos.forEach( utxo => {
+                    from_amount = from_amount + utxo[ 2 ];
+                    var txid = utxo[ 0 ];
+                    var vout = utxo[ 1 ];
+                    var amt = utxo[ 2 ];
+                    inputs.push({
+                        txid: txid,
+                        vout: vout,
+                        prevout: {
+                            value: amt,
+                            scriptPubKey: [ 'OP_1', tpubkey ]
+                        },
+                    });
+                });
+                var to_amount = 0;
+                var outputs = [];
+                $$( '.add_outputs .output_addy' ).forEach( (item, index) => {
+                    outputs.push({
+                        value: Number( $$( '.add_outputs .output_amt' )[ index ].value ),
+                        scriptPubKey: tapscript.Address.toScriptPubKey( item.value )
+                    });
+                    to_amount = to_amount + Number( $$( '.add_outputs .output_amt' )[ index ].value );
+                });
+                outputs.push({
+                    value: from_amount - ( to_amount + 500 ),
+                    scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
+                });
+                var txdata = tapscript.Tx.create({
+                  vin  : inputs,
+                  vout : outputs
+                });
+                var seckey = sessionStorage[ "myprivkey" ];
+                var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
+                // var sig = tapscript.Signer.taproot.sign(seckey, txdata, 0, { extension: tapleaf });
+                // txdata.vin[0].witness = [ "", sig.hex, sig.hex, script, cblock ];
+                // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
+                // console.log( "valid:", isValid );
+                // console.log( "txhex:", tapscript.Tx.encode( txdata ).hex );
+                var proposal = JSON.stringify( [$( '.proposal_desc' ).value, inputs, outputs] );
+                var event = {
+                    "content"    : proposal,
+                    "created_at" : Math.floor( Date.now() / 1000 ),
+                    "kind"       : 2859,
+                    "tags"       : [ [ "e", $_GET[ "multisig" ] ] ],
+                    "pubkey"     : pubKey,
+                }
+                var signedEvent = await getSignedEvent(event, seckey);
+                var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                    var myrelay = Object.keys( relays )[ i ];
+                    relays[ myrelay ] = new WebSocket( myrelay );
+                    relays[ myrelay ].addEventListener( "open", async () => {
+                        relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                        await waitSomeSeconds( 1 );
+                        relays[ myrelay ].close();
+                    });
+                }
+            }
+            function addOutput( element ) {
+                if ( element ) {
+                    element.previousElementSibling.style.display = "inline-block";
+                }
+                if ( $( '.output_plus_button' ) ) {
+                    $( '.output_plus_button' ).remove();
+                }
+                var output_addy = document.createElement( "input" );
+                output_addy.type = "text";
+                output_addy.className = "output_addy";
+                output_addy.placeholder = "address";
+                var output_amt = document.createElement( "input" );
+                output_amt.type = "number";
+                output_amt.className = "output_amt";
+                output_amt.placeholder = "amount (in sats)";
+                $( '.add_outputs' ).append( output_addy );
+                $( '.add_outputs' ).append( output_amt );
+                var minus = document.createElement( "div" );
+                minus.className = "minus_button";
+                minus.innerText = "-";
+                minus.onclick = function() {this.previousElementSibling.remove();this.previousElementSibling.remove();this.remove();}
+                $( '.add_outputs' ).append( minus );
+                var plus = document.createElement( "div" );
+                plus.className = "output_plus_button";
+                plus.innerText = "+";
+                plus.onclick = function() {addOutput( this );}
+                $( '.add_outputs' ).append( plus );
+            }
+            async function getBitcoinPriceFromCoinbase() {
+                    var data = await getData( "https://api.coinbase.com/v2/prices/BTC-USD/spot" );
+                    if ( data == "error" ) return 0;
+                    var json = JSON.parse( data );
+                    var price = json[ "data" ][ "amount" ];
+                    return price;
+            }
+            async function getBitcoinPriceFromKraken() {
+                    var data = await getData( "https://api.kraken.com/0/public/Ticker?pair=XBTUSD" );
+                    if ( data == "error" ) return 0;
+                    var json = JSON.parse( data );
+                    var price = json[ "result" ][ "XXBTZUSD" ][ "a" ][ 0 ];
+                    return price;
+            }
+            async function getBitcoinPriceFromCoindesk() {
+                    var data = await getData( "https://api.coindesk.com/v1/bpi/currentprice.json" );
+                    if ( data == "error" ) return 0;
+                    var json = JSON.parse( data );
+                    var price = json[ "bpi" ][ "USD" ][ "rate_float" ];
+                    return price;
+            }
+            async function getBitcoinPriceFromGemini() {
+                    var data = await getData( "https://api.gemini.com/v2/ticker/BTCUSD" );
+                    if ( data == "error" ) return 0;
+                    var json = JSON.parse( data );
+                    var price = json[ "bid" ];
+                    return price;
+            }
+            async function getBitcoinPriceFromCoinGecko() {
+                    var data = await getData( "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&precision=2" );
+                    if ( data == "error" ) return 0;
+                    var json = JSON.parse( data );
+                    var price = json[ "bitcoin" ][ "usd" ];
+                    return price;
+            }
+            async function getBitcoinPrice() {
+                var prices = [];
+                var cbprice = await getBitcoinPriceFromCoinbase();
+                var kprice = await getBitcoinPriceFromKraken();
+                var cdprice = await getBitcoinPriceFromCoindesk();
+                var gprice = await getBitcoinPriceFromGemini();
+                var cgprice = await getBitcoinPriceFromCoinGecko();
+                prices.push( Number( cbprice ), Number( kprice ), Number( cdprice ), Number( gprice ), Number( cgprice ) );
+                prices.sort();
+                console.log( prices );
+                return prices[ 2 ];
+            }
+            async function satsToDollars( sats ) {
+                if ( sats >= 100000000 ) sats = sats * 10;
+                var bitcoin_price = await getBitcoinPrice();
+                var value_in_dollars = Number( String( sats ).padStart( 8, "0" ).slice( 0,-9 ) + "." + String( sats ).padStart( 8, "0" ).slice( -9 ) ) * bitcoin_price;
+                return value_in_dollars;
+            }
+            function getData( url ) {
+                return new Promise( async function( resolve, reject ) {
+                    function inner_get( url ) {
+                        var xhttp = new XMLHttpRequest();
+                        xhttp.open( "GET", url, true );
+                        xhttp.send();
+                        return xhttp;
+                    }
+                    var data = inner_get( url );
+                    data.onerror = function( e ) {
+                        resolve( "error" );
+                    }
+                    async function isResponseReady() {
+                        return new Promise( function( resolve2, reject ) {
+                            if ( !data.responseText || data.readyState != 4 ) {
+                                setTimeout( async function() {
+                                    var msg = await isResponseReady();
+                                    resolve2( msg );
+                                }, 1 );
+                            } else {
+                                resolve2( data.responseText );
+                            }
+                        });
+                    }
+                    var returnable = await isResponseReady();
+                    resolve( returnable );
+                });
+            }
+            function getUTXOs( address ) {
+                return new Promise( function( resolve, reject ) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {
+                        if ( this.readyState == 4 && this.status == 200 ) {
+                            var esplorautxos = JSON.parse( xhttp.responseText );
+                            var utxos = [];
+                            esplorautxos.forEach( function( item, index ) {
+                                var utxo = [];
+                                utxo.push( item[ "txid" ] );
+                                utxo.push( item[ "vout" ] );
+                                utxo.push( item[ "value" ] );
+                                utxos.push( utxo );
+                            });
+                            resolve( utxos );
+                        }
+                    }
+                    xhttp.open( "GET", "https://mempool.space/testnet/api/address/" + address + "/utxo", true );
+                    xhttp.send();
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Welcome to bitpac</h1>
+        <div class="multisig_creator">
+            <p>
+                A bitpac is a publicly auditable cooperative that lives on bitcoin. Use this form to create a bitpac so that you and the other members of your cooperative can control some money and vote on how to spend it.
+            </p>
+            <p>Name your bitpac</p>
+            <input class="bitpac_name">
+            <p>Enter an npub for everyone in your bitpac</p>
+            <div class="select_npubs">
+            </div>
+            <p>Pick how many signers can spend the money</p>
+            <input class="select_threshold" type="number" value="1" min="1" step="1" max="74">
+            <p>Your policy so far: <span class="threshold_num">1</span> out of <span class="multisig_num">1</span></p>
+            <div class="nostr_profiles"></div>
+            <button class="create_bitpac">Submit</button>
+        </div>
+        <div class="multisig_viewer"></div>
+        <script>
+            var init = async () => {
+                if ( !$_GET[ "multisig" ] ) {
+                    addNpub();
+                    $( '.select_threshold' ).onchange = () => {
+                        if ( isNaN( $( '.select_threshold' ).value ) ) return;
+                        if ( Number( $( '.select_threshold' ).value ) > $$( '.select_npub' ).length ) $( '.select_threshold' ).value = $$( '.select_npub' ).length;
+                        $( '.threshold_num' ).innerText = $( '.select_threshold' ).value;
+                    }
+                    $( '.select_threshold' ).onkeyup = () => {
+                        if ( isNaN( $( '.select_threshold' ).value ) ) return;
+                        if ( Number( $( '.select_threshold' ).value ) > $$( '.select_npub' ).length ) $( '.select_threshold' ).value = $$( '.select_npub' ).length;
+                        $( '.threshold_num' ).innerText = $( '.select_threshold' ).value;
+                    }
+                    $( '.threshold_num' ).innerText = $( '.select_threshold' ).value;
+                    $( '.create_bitpac' ).onclick = async () => {
+                        var keep_going = true;
+                        $$( '.select_npub' ).forEach( item => {
+                            if ( !item.value ) {
+                                keep_going = false;
+                            }
+                            if ( !isValidNpub( item.value ) ) {
+                                keep_going = false;
+                            }
+                        });
+                        if ( !keep_going ) {
+                            alert( "One of your npubs is invalid or empty, please fix it and try again" );
+                            return;
+                        }
+                        var conf_message = `Are you sure you want to use a policy of ${String( $( '.select_threshold' ).value )} out of ${String( $$( '.select_npub' ).length )}?`;
+                        var conf = confirm( conf_message );
+                        if ( !conf ) return;
+                        var npubs = [];
+                        var pubkeys = [ Number( $( '.select_threshold' ).value ) ];
+                        $$( '.select_npub' ).forEach( item => {
+                            npubs.push( item.value );
+                            pubkeys.push( pubkeyFromNpub( item.value ) );
+                        });
+                        var bitpac_name = $( '.bitpac_name' ).value;
+                        var event = {
+                            "content"    : JSON.stringify( [bitpac_name, pubkeys] ),
+                            "created_at" : Math.floor( Date.now() / 1000 ),
+                            "kind"       : 2858,
+                            "tags"       : [],
+                            "pubkey"     : pubKey,
+                        }
+                        var signedEvent = await getSignedEvent(event, privKey);
+                        var note_id = signedEvent.id;
+                        var url = window.location.href + "?multisig=" + note_id;
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                            var myrelay = Object.keys( relays )[ i ];
+                            relays[ myrelay ] = new WebSocket( myrelay );
+                            relays[ myrelay ].addEventListener( "open", async () => {
+                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                                await waitSomeSeconds( 1 );
+                                relays[ myrelay ].close();
+                            });
+                        }
+                        alert( `Success, your multisig is created and can be viewed and managed here:\n\n${url}` );
+                    }
+                } else {
+                    $( '.multisig_creator' ).style.display = "none";
+                    $( '.multisig_viewer' ).style.display = "block";
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var myrelay = Object.keys( relays )[ i ];
+                        relays[ myrelay ] = new WebSocket( myrelay );
+                        await waitSomeSeconds( 0.3 );
+                        relays[ myrelay ].addEventListener( "message", handleMessage );
+                        var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
+                        var filter  = { "ids": [ $_GET[ "multisig"] ] }
+                        var subscription = [ "REQ", subId, filter ];
+                        relays[ myrelay ].addEventListener( "open", async () => {
+                            relays[ myrelay ].send( JSON.stringify( subscription ) );
+                        });
+                    }
+                }
+            }
+            init();
+        </script>
+    </body>
+</html>
