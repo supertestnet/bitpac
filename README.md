@@ -15,7 +15,7 @@ One day I was looking up reasons why altcoins are stupid and I came across this 
 
 Basically there's this ethereum "dao" called sushiswap. They got sued by the SEC. In response they created a proposal to use the funds held by the voters in their "dao" to hire lawyers to defend themselves. The vote passed and the money went to a bunch of lawyers.
 
-I thought that was pretty stupid, but I liked the voting part. People voting on how to spend some money may not be a dao in my opinion, but it's still neat. So I made this tool so that bitcoiners can do something similar. Create a multisig by selecting people's profiles from nostr, pick a threshold of how many votes are needed to move the money, and the result you get is a public page where any keyholder can propose how they'd like to spend the money. Every voter gets to accept or reject that proposal, and voila! It's like what sushiswap did except on bitcoin.
+I thought that was pretty stupid, but I liked the voting part. Voting on expenditures doesn't make you a dao (in my opinion), but it's still pretty neat. So I made this tool so that bitcoiners can do something similar. Create a multisig by selecting people's profiles from nostr, pick a threshold of how many votes are needed to move the money, and the result you get is a public page where any keyholder can propose how they'd like to spend the money. Every voter gets to accept or reject that proposal, and voila! It's like what sushiswap did except on bitcoin.
 
 # Todo list
 
