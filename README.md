@@ -13,7 +13,7 @@ The short answer is yes. The long answer is no. Daos are supposed to be autonomo
 
 One day I was looking up reasons why altcoins are stupid and I came across this gem: https://forum.sushi.com/t/establish-sushi-legal-defense-fund/11813
 
-Basically there's this ethereum "dao" called sushiswap. They got sued by the SEC. In response they created a proposal to use the funds held by the voters in their "dao" to hire lawyers to defend themselves. The vote passed and the money got unlocked.
+Basically there's this ethereum "dao" called sushiswap. They got sued by the SEC. In response they created a proposal to use the funds held by the voters in their "dao" to hire lawyers to defend themselves. The vote passed and the money went to a bunch of lawyers.
 
 I thought that was pretty cool. I like the idea of people voting on how to spend some money. So I made this tool so that bitcoiners can do something similar. Create a multisig by selecting people's profiles from nostr, pick a threshold of how many votes are needed to move the money, and the result you get is a public page where any keyholder can propose how they'd like to spend the money. Every voter gets to accept or reject that proposal, and voila! It's like what sushiswap did except on bitcoin.
 
