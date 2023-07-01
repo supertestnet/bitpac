@@ -35,6 +35,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [ ] Automatically reload the page after a transaction is broadcasted
 - [ ] Make the page load faster
 - [ ] Display a countdown on each proposal for when it disappears
+- [ ] Display past proposals
 - [ ] Add more items to this todo list
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
