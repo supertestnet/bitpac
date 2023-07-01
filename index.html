@@ -99,8 +99,8 @@
             for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
         </script>
         <script>
-            var mempoolnet = "testnet";
-            var mempoolNetwork = "testnet/"; //mainnet: "" | signet: "signet/"
+            var mempoolnet = "mainnet"; //the full word: mainnet | testnet (works for signet too) | regtest
+            var mempoolNetwork = ""; //mainnet: "" | signet: "signet/"
             if ( $_GET[ "network" ] == "testnet" ) {
                 mempoolNetwork = "testnet/";
                 mempoolnet = "testnet";
