@@ -370,7 +370,6 @@
                 if ( kind === 2859 ) {
                     if ( $( `.proposal_${event.id}` ) ) return;
                     var proposal = JSON.parse( content );
-                    console.log( "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
                     `;
@@ -695,11 +694,6 @@
                 });
                 var seckey = sessionStorage[ "myprivkey" ];
                 var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
-                // var sig = tapscript.Signer.taproot.sign(seckey, txdata, 0, { extension: tapleaf });
-                // txdata.vin[0].witness = [ "", sig.hex, sig.hex, script, cblock ];
-                // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
-                // console.log( "valid:", isValid );
-                // console.log( "txhex:", tapscript.Tx.encode( txdata ).hex );
                 var proposal = JSON.stringify( [$( '.proposal_desc' ).value, inputs, outputs] );
                 var event = {
                     "content"    : proposal,
