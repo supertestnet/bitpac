@@ -73,6 +73,11 @@
                 display: inline-block;
                 vertical-align: middle;
             }
+            .login_form {
+                border: 1px solid black;
+                border-radius: 1rem;
+                padding: 1rem;
+            }
             @media screen and (max-width: 600px) {
                 .output_addy, .output_amt, .proposed_output, .proposed_amt {
                     width: 100%;
@@ -242,6 +247,7 @@
                             if ( i > $$( ".profile" ).length - 1 ) continue;
                             var div_to_get = `.profile_${event.pubkey}_${i}`;
                             if ( !$( div_to_get ) ) continue;
+                            $( '.loading_profiles' ).style.display = "none";
                             $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
                             $( div_to_get ).firstElementChild.style.display = "inline-block";
                             $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
@@ -283,11 +289,13 @@
                             Policy: ${threshold} out of ${temp_multisig.length}
                         </div>
                         <p>Members:</p>
-                        <div class="nostr_profiles"></div>
+                        <div class="nostr_profiles">
+                            <p class="loading_profiles">Loading<span class="dots">.</span></p>
+                        </div>
                         <p>Address: <span class="addy">${multisig_address}</span></p>
                         <p style="font-weight: bold;">Proposals</p>
                         <div class="proposals">
-                            <p class="none_currently">None currently</p>
+                            <p class="none_currently">Loading<span class="dots">.</span></p>
                         </div>
                         <div class="crafter">
                             <p style="font-weight: bold;">Craft a proposal</p>
@@ -365,6 +373,7 @@
                         await waitSomeSeconds( 2 );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
                     }
+                    $( '.none_currently' ).innerText = "None currently";
                     addOutput();
                 }
                 if ( kind === 2859 ) {
@@ -616,11 +625,12 @@
                                     sig_counter = sig_counter + 1;
                                 }
                             });
-                            console.log( "sigs array:", sigs_array );
                             temp_multisig.reverse();
                             txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
                         }
-                        alert( `The transaction was approved! Go broadcast it:\n\n${tapscript.Tx.encode( txdata ).hex}` );
+                        var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
+                        alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
+                        window.location.reload();
                     }
                 }
             }
@@ -885,6 +895,65 @@
                 var array = [ fees["minimumFee"], fees["hourFee"], fees["fastestFee"] ];
                 return array;
             }
+            function dotLoop(string) {
+                if (!$('.dots')) {
+                    setTimeout(function () {
+                        dotLoop(string);
+                    }, 1000);
+                    return;
+                }
+                if (string.length < 3) {
+                    string = string + ".";
+                } else {
+                    string = ".";
+                }
+                $$('.dots').forEach( item => {
+                    item.innerText = string;
+                });
+                setTimeout(function () {
+                    dotLoop(string);
+                }, 1000);
+            }
+            async function pushBTCpmt( rawtx, network ) {
+                var txid = await postData( "https://mempool.space/" + network + "api/tx", rawtx );
+                return txid;
+            }
+            async function postData( url, json, content_type = "", apikey = "" ) {
+                var rtext = "";
+                function inner_post( url, json, content_type = "", apikey = "" ) {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.open( "POST", url, true );
+                    if ( content_type ) {
+                        xhttp.setRequestHeader( `Content-Type`, content_type );
+                    }
+                    if ( apikey ) {
+                        xhttp.setRequestHeader( `X-Api-Key`, apikey );
+                    }
+                    xhttp.send( json );
+                    return xhttp;
+                }
+                var data = inner_post( url, json, content_type, apikey );
+                data.onerror = function( e ) {
+                    rtext = "error";
+                }
+                async function isResponseReady() {
+                    return new Promise( function( resolve, reject ) {
+                        if ( rtext == "error" ) {
+                            resolve( rtext );
+                        }
+                        if ( !data.responseText || data.readyState != 4 ) {
+                            setTimeout( async function() {
+                                var msg = await isResponseReady();
+                                resolve( msg );
+                            }, 50 );
+                        } else {
+                            resolve( data.responseText );
+                        }
+                    });
+                }
+                var returnable = await isResponseReady();
+                return returnable;
+            }
         </script>
     </head>
     <body>
@@ -907,6 +976,7 @@
         <div class="multisig_viewer"></div>
         <script>
             var init = async () => {
+                dotLoop( "." );
                 if ( !$_GET[ "multisig" ] ) {
                     addNpub();
                     $( '.select_threshold' ).onchange = () => {
