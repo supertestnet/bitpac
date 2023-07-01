@@ -73,7 +73,7 @@
                 display: inline-block;
                 vertical-align: middle;
             }
-            .login_form {
+            .login_form, .crafter {
                 border: 1px solid black;
                 border-radius: 1rem;
                 padding: 1rem;
@@ -320,6 +320,7 @@
                     $( '.multisig_viewer' ).append( div );
                     $( '.login_btn' ).onclick = () => {
                         var nsec = prompt( "Enter your nsec" );
+                        if ( !nsec ) return;
                         var myprivkey = privkeyFromNsec( nsec );
                         var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
                         if ( !multisig.includes( mypubkey ) ) {
@@ -341,18 +342,6 @@
                             });
                         });
                     }
-                    var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
-                    sessionStorage[ "utxos" ] = JSON.stringify( utxos );
-                    var full_balance = 0;
-                    utxos.forEach( item => {
-                        full_balance = full_balance + item[ 2 ];
-                    });
-                    var usd_balance = await satsToDollars( full_balance );
-                    usd_balance = usd_balance.toFixed( 2 );
-                    $( '.bitpac_balance' ).innerText = usd_balance;
-                    $$( '.bitpac_balance' )[ 1 ].innerText = usd_balance;
-                    $( '.bitpac_balance_sats' ).innerText = full_balance;
-                    $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
                     $( '.craft_proposal' ).onclick = spendCoins;
                     var i; for ( i=0; i<temp_multisig.length; i++ ) {
                         var item = temp_multisig[ i ];
@@ -1052,7 +1041,28 @@
                     }
                 }
             }
+            getUtxosOnLoop = async () => {
+                if ( $( '.addy' ) ) {
+                    var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
+                    sessionStorage[ "utxos" ] = JSON.stringify( utxos );
+                    var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
+                    sessionStorage[ "utxos" ] = JSON.stringify( utxos );
+                    var full_balance = 0;
+                    utxos.forEach( item => {
+                        full_balance = full_balance + item[ 2 ];
+                    });
+                    var usd_balance = await satsToDollars( full_balance );
+                    usd_balance = usd_balance.toFixed( 2 );
+                    $( '.bitpac_balance' ).innerText = usd_balance;
+                    $$( '.bitpac_balance' )[ 1 ].innerText = usd_balance;
+                    $( '.bitpac_balance_sats' ).innerText = full_balance;
+                    $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
+                }
+                await waitSomeSeconds( 10 );
+                getUtxosOnLoop();
+            }
             init();
+            setTimeout( getUtxosOnLoop, 3000 );
         </script>
     </body>
 </html>
