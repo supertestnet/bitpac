@@ -27,7 +27,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [x] Make proposals disappear if they aren't passed in a month
 - [x] Disallow subdust outputs
 - [x] If a user proposes spending the max amount or very close to it, don't create a change output
-- [ ] Improve the user interface
+- [ ] Improve the user interface (including via loading animations)
 - [ ] Let keyholders transfer or sell their voting rights
 - [ ] Allow custom fees
 - [ ] Automatically broadcast transactions
