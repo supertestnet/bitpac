@@ -3,7 +3,7 @@ Publicly auditable cooperatives that live on bitcoin
 
 # What is a bitpac?
 
-A bitpac is a publicly auditable cooperative that lives on bitcoin. Anyone can create a bitpac and its members can control some money and vote on how to spend it.
+A bitpac is a cooperative whose members control some money and vote on how to spend it. It uses bitcoin multisig to enable group control and voting happens over nostr.
 
 # So is this basically a DAO?
 
