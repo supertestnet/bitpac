@@ -566,17 +566,38 @@
                             return true;
                         });
                         if ( sigs_exist_already ) return;
-                        //todo: validate the sig
-                        sigs[ proposal ][ event.pubkey ] = all_sigs;
-                        $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
-                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
-                        if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
+                        //validate each signature
+                        //but to do that I need the txdata and tapleaf
+                        //because those give me the scripthash
+                        //and to get the tapleaf I need the script
+                        var script = [0];
+                        temp_multisig.forEach( item => {
+                            script.push( item, "OP_CHECKSIGADD" );
+                        });
+                        var pubkey = "ab".repeat( 32 );
+                        script.push( threshold, "OP_EQUAL" );
+                        var sbytes = tapscript.Script.encode( script );
+                        var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                        var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                         var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
                         var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
+                        //now I have the script and tapleaf but I still need the txdata
                         var txdata = tapscript.Tx.create({
                           vin  : inputs,
                           vout : outputs
                         });
+                        //now I can validate each signature
+                        var all_sigs_are_valid = true;
+                        var i; for ( i=0; i<inputs.length; i++ ) {
+                            var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
+                            var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
+                            if ( !is_valid ) all_sigs_are_valid = false;
+                        }
+                        if ( !all_sigs_are_valid ) return;
+                        sigs[ proposal ][ event.pubkey ] = all_sigs;
+                        $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
+                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
+                        if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
                         var i; for ( i=0; i<JSON.parse( content ).length; i++ ) {
                             //put sigs in reverse order of multisig keys
                             var sigs_array = [];
@@ -596,19 +617,8 @@
                                 }
                             });
                             console.log( "sigs array:", sigs_array );
-                            var script = [0];
                             temp_multisig.reverse();
-                            temp_multisig.forEach( item => {
-                                script.push( item, "OP_CHECKSIGADD" );
-                            });
-                            var pubkey = "ab".repeat( 32 );
-                            script.push( threshold, "OP_EQUAL" );
-                            var sbytes = tapscript.Script.encode( script );
-                            var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
-                            var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                             txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
-                            // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
-                            // console.log( "valid:", isValid );
                         }
                         alert( `The transaction was approved! Go broadcast it:\n\n${tapscript.Tx.encode( txdata ).hex}` );
                     }
@@ -682,9 +692,10 @@
                     alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                     return;
                 }
-                if ( from_amount - ( to_amount + 500 ) >= 546 ) {
+                var mining_fee = 500;
+                if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
                     outputs.push({
-                        value: from_amount - ( to_amount + 500 ),
+                        value: from_amount - ( to_amount + mining_fee ),
                         scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
                     });
                 }
