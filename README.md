@@ -31,6 +31,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [ ] If the user spends the max amount or very close to it, don't create a change output
 - [ ] Allow custom fees
 - [ ] Automatically broadcast transactions
+- [ ] Display a countdown on each proposal for when it disappears
 - [ ] Add more items to this todo list
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
