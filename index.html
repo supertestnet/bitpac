@@ -78,6 +78,12 @@
                 border-radius: 1rem;
                 padding: 1rem;
             }
+            .fee_warning {
+                display: none;
+                border: 2px solid red;
+                padding: 1rem;
+                background-color: pink;
+            }
             @media screen and (max-width: 600px) {
                 .output_addy, .output_amt, .proposed_output, .proposed_amt {
                     width: 100%;
@@ -284,8 +290,8 @@
                     var html = `
                         <div class="bitpac_info">
                             Bitpac name: ${bitpac_name}<br>
-                            Balance (usd): <span class="bitpac_balance">0</span><br>
-                            Balance (sats): <span class="bitpac_balance_sats">0</span><br>
+                            Balance (usd): <span class="bitpac_balance">loading<span class="dots">.</span></span><br>
+                            Balance (sats): <span class="bitpac_balance_sats">loading<span class="dots">.</span></span><br>
                             Policy: ${threshold} out of ${temp_multisig.length}
                         </div>
                         <p>Members:</p>
@@ -303,8 +309,8 @@
                             <p><input class="proposal_desc"></p>
                             <p>How do you want to spend the money?</p>
                             <div class="spend_info">
-                                Balance (usd): <span class="bitpac_balance">0</span><br>
-                                Balance (sats): <span class="bitpac_balance_sats">0</span>
+                                Balance (usd): <span class="bitpac_balance">loading<span class="dots">.</span></span><br>
+                                Balance (sats): <span class="bitpac_balance_sats">loading<span class="dots">.</span></span>
                                 <br><br>
                             </div>
                             <div class="add_outputs"></div>
@@ -331,6 +337,9 @@
                         sessionStorage[ "mypubkey" ] = mypubkey;
                         $( '.crafter' ).style.display = "block";
                         $$( '.approve_or_deny' ).forEach( item => {
+                            item.style.display = "block";
+                        });
+                        $$( '.fee_warning' ).forEach( item => {
                             item.style.display = "block";
                         });
                         $( '.login_form' ).style.display = "none";
@@ -368,6 +377,7 @@
                 if ( kind === 2859 ) {
                     if ( $( `.proposal_${event.id}` ) ) return;
                     var proposal = JSON.parse( content );
+                    // console.log( proposal[ 0 ], "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
                     `;
@@ -416,8 +426,43 @@
                         div.append( div2 );
                     });
                     var fee_amount = from_amount - ( to_amount + change_amount );
+                    if ( !fee_amount ) {
+                        var number_of_visible_proposals = 0;
+                        $$( '.proposal_div' ).forEach( item => {
+                            if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                        });
+                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
+                        return;
+                    }
                     var fee = document.createElement( "div" );
                     fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
+                    //check for low fees and warn if too low
+                    var size_of_each_input = 0;
+                    var temp_multisig = [...multisig];
+                    threshold = temp_multisig[ 0 ];
+                    temp_multisig.splice( 0, 1 );
+                    var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                        size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
+                    }
+                    var txsize = 0;
+                    var i; for ( i=0; i<proposal[ 1 ].length; i++ ) {
+                        txsize = txsize + size_of_each_input;
+                    }
+                    var i; for ( i=0; i<proposal[ 2 ].length; i++ ) {
+                        //I calculate that outputs add 30 bytes apiece by
+                        //assuming the average scriptpubkey is 26 bytes
+                        //and assuming amounts are denoted in 4 bytes
+                        txsize = txsize + 30;
+                    }
+                    var fee_options = await getThreeFeeRates( mempoolNetwork );
+                    var min_fee = fee_options[ 0 ];
+                    min_fee = ( Number( min_fee ) * txsize ) - 30;
+                    //I subtracted 30 because the parent transaction often-but-not-always
+                    //adds an additional change output after calculating the feerate, so
+                    //that makes it too-frequently trigger the fee warning -- also, I am
+                    //overestimating fees anyway due to not understanding how the witness
+                    //discount works so this should be safe
+                    if ( fee_amount < min_fee ) fee.innerHTML += `<p class="fee_warning">Warning, this is a low fee, likely to be rejected by miners. The estimated size of this transaction is ${txsize} bytes and the lowest feerate that most mempools accept right now is ${fee_options[ 0 ]} sat per byte. That means your tx should pay at least ${min_fee} sats as a fee. Be careful what you sign.</p>`;
                     div.append( fee );
                     var buttons = document.createElement( "div" );
                     buttons.className = "approve_or_deny";
@@ -482,10 +527,6 @@
                             var sig = tapscript.Signer.taproot.sign(seckey, txdata, i, { extension: tapleaf });
                             all_sigs.push( sig.hex );
                         }
-                        // txdata.vin[0].witness = [ "", sig.hex, sig.hex, script, cblock ];
-                        // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
-                        // console.log( "valid:", isValid );
-                        // console.log( "txhex:", tapscript.Tx.encode( txdata ).hex );
                         var reply = {
                             "content"    : JSON.stringify( all_sigs ),
                             "created_at" : Math.floor( Date.now() / 1000 ),
@@ -520,7 +561,11 @@
                     div.append( sigs_obtained );
                     $( '.proposals' ).append( div );
                     if ( sessionStorage[ "myprivkey" ] ) {
+                        $( '.crafter' ).style.display = "block";
                         $$( '.approve_or_deny' ).forEach( item => {
+                            item.style.display = "block";
+                        });
+                        $$( '.fee_warning' ).forEach( item => {
                             item.style.display = "block";
                         });
                     }
@@ -618,6 +663,15 @@
                             txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
                         }
                         var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
+                        sessionStorage[ "loop_num" ] = "2";
+                        $$( '.proposal_div' ).forEach( item => {
+                            item.style.display = "none";
+                        });
+                        var number_of_visible_proposals = 0;
+                        $$( '.proposal_div' ).forEach( item => {
+                            if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                        });
+                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
                         alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                     }
                 }
@@ -694,6 +748,10 @@
                     alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                     return;
                 }
+                if ( from_amount - to_amount == 0 ) {
+                    alert( "You must leave enough to pay a mining fee, please try again" );
+                    return;
+                }
                 var size_of_each_input = 0;
                 var i; for ( i=0; i<temp_multisig.length; i++ ) {
                     size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
@@ -716,6 +774,10 @@
                     return;
                 }
                 var mining_fee = txsize * sats_per_byte;
+                if ( from_amount - to_amount < mining_fee ) {
+                    alert( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
+                    return;
+                }
                 if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
                     outputs.push({
                         value: from_amount - ( to_amount + mining_fee ),
@@ -1041,7 +1103,8 @@
                     }
                 }
             }
-            getUtxosOnLoop = async ( num ) => {
+            getUtxosOnLoop = async () => {
+                var num = Number( sessionStorage[ "loop_num" ] );
                 if ( $( '.addy' ) && num < 1 ) {
                     getBitcoinPrice();
                     num = 10;
@@ -1059,11 +1122,13 @@
                     $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
                 }
                 num = num - 1;
+                sessionStorage[ "loop_num" ] = String( num );
                 await waitSomeSeconds( 1 );
-                getUtxosOnLoop( num );
+                getUtxosOnLoop();
             }
             init();
-            getUtxosOnLoop( 3 );
+            sessionStorage[ "loop_num" ] = "3";
+            getUtxosOnLoop();
         </script>
     </body>
 </html>
