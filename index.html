@@ -479,13 +479,17 @@
                         var sbytes = tapscript.Script.encode( script );
                         var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
                         var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
-                        var sig = tapscript.Signer.taproot.sign(seckey, txdata, 0, { extension: tapleaf });
+                        var all_sigs = [];
+                        var i; for ( i=0; i<inputs.length; i++ ) {
+                            var sig = tapscript.Signer.taproot.sign(seckey, txdata, i, { extension: tapleaf });
+                            all_sigs.push( sig.hex );
+                        }
                         // txdata.vin[0].witness = [ "", sig.hex, sig.hex, script, cblock ];
                         // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
                         // console.log( "valid:", isValid );
                         // console.log( "txhex:", tapscript.Tx.encode( txdata ).hex );
                         var reply = {
-                            "content"    : sig.hex,
+                            "content"    : JSON.stringify( all_sigs ),
                             "created_at" : Math.floor( Date.now() / 1000 ),
                             "kind"       : 2860,
                             "tags"       : [ [ "e", event.id ] ],
@@ -502,7 +506,7 @@
                             });
                         }
                         console.log( "approved!" );
-                        window.location.reload();
+                        // window.location.reload();
                     }
                     var sigs_obtained = document.createElement( "div" );
                     sigs_obtained.innerHTML = `
@@ -539,28 +543,36 @@
                         if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .approve` ).disabled = true;
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
                     } else {
+                        if ( proposal in sigs && Object.keys( sigs[ proposal ] ).length >= threshold ) return;
                         if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
                         if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .deny` ).disabled = true;
-                        sig = content;
-                        var sig_exists_already = false;
+                        all_sigs = JSON.parse( content );
+                        var sigs_exist_already = false;
                         Object.keys( sigs[ proposal ] ).every( item => {
                             if ( item == event.pubkey ) {
-                                sig_exists_already = true;
+                                sigs_exist_already = true;
                                 return;
                             }
                             return true;
                         });
-                        if ( sig_exists_already ) return;
+                        if ( sigs_exist_already ) return;
                         //todo: validate the sig
-                        sigs[ proposal ][ event.pubkey ] = sig;
+                        sigs[ proposal ][ event.pubkey ] = all_sigs;
                         $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
-                        if ( Object.keys( sigs[ proposal ] ).length == threshold ) {
+                        if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
+                        var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
+                        var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
+                        var txdata = tapscript.Tx.create({
+                          vin  : inputs,
+                          vout : outputs
+                        });
+                        var i; for ( i=0; i<JSON.parse( content ).length; i++ ) {
                             //put sigs in reverse order of multisig keys
                             var sigs_array = [];
                             temp_multisig.reverse();
                             temp_multisig.forEach( item => {
                                 if ( Object.keys( sigs[ proposal ] ).includes( item ) ) {
-                                    sigs_array.push( sigs[ proposal ][ item ] );
+                                    sigs_array.push( sigs[ proposal ][ item ][ i ] );
                                 } else {
                                     sigs_array.push( "" );
                                 }
@@ -573,12 +585,6 @@
                                 }
                             });
                             console.log( "sigs array:", sigs_array );
-                            var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
-                            var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
-                            var txdata = tapscript.Tx.create({
-                              vin  : inputs,
-                              vout : outputs
-                            });
                             var script = [0];
                             temp_multisig.reverse();
                             temp_multisig.forEach( item => {
@@ -589,11 +595,11 @@
                             var sbytes = tapscript.Script.encode( script );
                             var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
                             var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
-                            txdata.vin[0].witness = [ ...sigs_array, script, cblock ];
+                            txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
                             // var isValid = await tapscript.Signer.taproot.verify(txdata, 0, { pubkey });
                             // console.log( "valid:", isValid );
-                            alert( `The transaction was approved! Go broadcast it:\n\n${tapscript.Tx.encode( txdata ).hex}` );
                         }
+                        alert( `The transaction was approved! Go broadcast it:\n\n${tapscript.Tx.encode( txdata ).hex}` );
                     }
                 }
             }
