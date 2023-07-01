@@ -30,6 +30,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [ ] Improve the user interface (including via loading animations)
 - [ ] Let keyholders transfer or sell their voting rights
 - [ ] Allow custom fees
+- [ ] Warn about low fees
 - [ ] Automatically broadcast transactions
 - [ ] Automatically reload the page after a transaction is broadcasted
 - [ ] Make the page load faster
