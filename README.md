@@ -19,7 +19,7 @@ I thought that was pretty stupid, but I liked the voting part. Voting on expendi
 
 # So this is nothing more and nothing less than a multisig. Why didn't you just call it a multisig? Why make a new name when "multisig" is fine?
 
-A bitpac is a multisig with *public auditability.* Multisigs are usually private -- you normally don't disclose who's in them. With bitpac, you do. But if you just want to just call it a multisig that's fine with me. I still had fun making an interface for creating and managing multisigs, and I for one think this tool is unique enough that it's worth naming it something special.
+A bitpac is a multisig with *public auditability.* Multisigs are usually private -- you normally don't disclose who's in them. With bitpac, you do. But if you just want to just call it a multisig that's fine with me. I still had fun making an interface for creating and managing multisigs, and I for one think this tool is unique enough that it merits a special name.
 
 # Todo list
 
