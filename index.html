@@ -359,7 +359,8 @@
                         var myrelay = Object.keys( relays )[ i ];
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter = { authors: temp_multisig, kinds: [ 0 ] }
-                        var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ] }
+                        var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
+                        var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ], since: one_month_ago }
                         var subscription = [ "REQ", subId, filter, filter2 ];
                         await waitSomeSeconds( 2 );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
@@ -454,6 +455,7 @@
                                 await waitSomeSeconds( 1 );
                                 relays[ myrelay ].close();
                             });
+                            await waitSomeSeconds( 1 );
                         }
                         console.log( "denied!" );
                         window.location.reload();
@@ -504,9 +506,10 @@
                                 await waitSomeSeconds( 1 );
                                 relays[ myrelay ].close();
                             });
+                            await waitSomeSeconds( 1 );
                         }
                         console.log( "approved!" );
-                        // window.location.reload();
+                        window.location.reload();
                     }
                     var sigs_obtained = document.createElement( "div" );
                     sigs_obtained.innerHTML = `
@@ -515,7 +518,7 @@
                             Denials: <span class="denys_obtained">0</span><br>
                             Approvals needed to send the money: ${threshold}<br>
                             Denials needed to block approval: ${( $$( '.profile' ).length - threshold ) + 1}<br>
-                            Number of respondants so far: <span class="respondants_num">0</span>
+                            Number of respondants so far: <span class="respondants_num">0</span> out of ${$$( '.profile' ).length}
                         </div>
                     `;
                     div.append( sigs_obtained );
@@ -542,6 +545,15 @@
                     if ( !content ) {
                         if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .approve` ).disabled = true;
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
+                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
+                        //make rejected proposals disappear
+                        if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
+                        $( `.proposal_${proposal}` ).style.display = "none";
+                        var number_of_visible_proposals = 0;
+                        $$( '.proposal_div' ).forEach( item => {
+                            if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                        });
+                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
                     } else {
                         if ( proposal in sigs && Object.keys( sigs[ proposal ] ).length >= threshold ) return;
                         if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
@@ -559,6 +571,7 @@
                         //todo: validate the sig
                         sigs[ proposal ][ event.pubkey ] = all_sigs;
                         $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
+                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
                         if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
                         var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
                         var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
