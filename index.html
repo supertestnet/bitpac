@@ -684,10 +684,12 @@
                     alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                     return;
                 }
-                outputs.push({
-                    value: from_amount - ( to_amount + 500 ),
-                    scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
-                });
+                if ( from_amount - ( to_amount + 500 ) >= 546 ) {
+                    outputs.push({
+                        value: from_amount - ( to_amount + 500 ),
+                        scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
+                    });
+                }
                 var txdata = tapscript.Tx.create({
                   vin  : inputs,
                   vout : outputs
