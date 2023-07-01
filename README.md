@@ -27,16 +27,16 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [x] Make proposals disappear if they aren't passed in a month
 - [x] Disallow subdust outputs
 - [x] If a user proposes spending the max amount or very close to it, don't create a change output
-- [ ] Improve the user interface (including via loading animations)
-- [ ] Let keyholders transfer or sell their voting rights
-- [ ] Allow custom fees
+- [x] Allow custom fees
 - [ ] Warn about low fees
 - [ ] Automatically broadcast transactions
 - [ ] Automatically reload the page after a transaction is broadcasted
-- [ ] Make the page load faster
 - [ ] Display a countdown on each proposal for when it disappears
 - [ ] Display past proposals
 - [ ] Fix the issue where a voter can make proposals vanish by denying them many times
+- [ ] Improve the user interface (including via loading animations)
+- [ ] Let keyholders transfer or sell their voting rights
+- [ ] Make the page load faster
 - [ ] Add more items to this todo list
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
