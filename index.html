@@ -1074,7 +1074,8 @@
                         }
                         var signedEvent = await getSignedEvent(event, privKey);
                         var note_id = signedEvent.id;
-                        var url = window.location.href + "?multisig=" + note_id;
+                        var divider = window.location.href.includes( "?" ) ? "&" : "?";
+                        var url = window.location.href + divider + "multisig=" + note_id;
                         var i; for ( i=0; i<Object.keys( relays ).length; i++) {
                             var myrelay = Object.keys( relays )[ i ];
                             relays[ myrelay ] = new WebSocket( myrelay );
