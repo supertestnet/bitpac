@@ -619,7 +619,6 @@
                         }
                         var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
                         alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
-                        window.location.reload();
                     }
                 }
             }
@@ -820,12 +819,13 @@
                 var cgprice = await getBitcoinPriceFromCoinGecko();
                 prices.push( Number( cbprice ), Number( kprice ), Number( cdprice ), Number( gprice ), Number( cgprice ) );
                 prices.sort();
-                console.log( prices );
+                sessionStorage[ "btc_price" ] = prices[ 2 ];
                 return prices[ 2 ];
             }
             async function satsToDollars( sats ) {
                 if ( sats >= 100000000 ) sats = sats * 10;
-                var bitcoin_price = await getBitcoinPrice();
+                if ( !sessionStorage[ "btc_price" ] ) await getBitcoinPrice();
+                var bitcoin_price = Number( sessionStorage[ "btc_price" ] );
                 var value_in_dollars = Number( String( sats ).padStart( 8, "0" ).slice( 0,-9 ) + "." + String( sats ).padStart( 8, "0" ).slice( -9 ) ) * bitcoin_price;
                 return value_in_dollars;
             }
@@ -1041,10 +1041,10 @@
                     }
                 }
             }
-            getUtxosOnLoop = async () => {
-                if ( $( '.addy' ) ) {
-                    var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
-                    sessionStorage[ "utxos" ] = JSON.stringify( utxos );
+            getUtxosOnLoop = async ( num ) => {
+                if ( $( '.addy' ) && num < 1 ) {
+                    getBitcoinPrice();
+                    num = 10;
                     var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
                     sessionStorage[ "utxos" ] = JSON.stringify( utxos );
                     var full_balance = 0;
@@ -1058,11 +1058,12 @@
                     $( '.bitpac_balance_sats' ).innerText = full_balance;
                     $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
                 }
-                await waitSomeSeconds( 10 );
-                getUtxosOnLoop();
+                num = num - 1;
+                await waitSomeSeconds( 1 );
+                getUtxosOnLoop( num );
             }
             init();
-            setTimeout( getUtxosOnLoop, 3000 );
+            getUtxosOnLoop( 3 );
         </script>
     </body>
 </html>
