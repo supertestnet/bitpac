@@ -640,11 +640,6 @@
                 return event;
             }
             var spendCoins = async () => {
-                // var txid = prompt( "Enter a txid" );
-                // var vout = prompt( "And a vout" );
-                // vout = Number( vout );
-                // var amt = prompt( "And an amount of sats" );
-                // amt = Number( amt );
                 var temp_multisig = [...multisig];
                 var threshold = temp_multisig[ 0 ];
                 temp_multisig.splice( 0, 1 );
@@ -656,8 +651,6 @@
                 script.push( threshold, "OP_EQUAL" );
                 var sbytes = tapscript.Script.encode( script );
                 var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
-                // console.log( "tapleaf:", tapleaf );
-                // console.log( "next:", tapscript.Tap.getPubKey(pubkey, { target: tapleaf }) );
                 var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                 var utxos = JSON.parse( sessionStorage[ "utxos" ] );
                 var inputs = [];
@@ -678,13 +671,19 @@
                 });
                 var to_amount = 0;
                 var outputs = [];
+                var there_be_dust = false;
                 $$( '.add_outputs .output_addy' ).forEach( (item, index) => {
                     outputs.push({
                         value: Number( $$( '.add_outputs .output_amt' )[ index ].value ),
                         scriptPubKey: tapscript.Address.toScriptPubKey( item.value )
                     });
                     to_amount = to_amount + Number( $$( '.add_outputs .output_amt' )[ index ].value );
+                    if ( Number( $$( '.add_outputs .output_amt' )[ index ].value ) < 546 ) there_be_dust = true;
                 });
+                if ( there_be_dust ) {
+                    alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
+                    return;
+                }
                 outputs.push({
                     value: from_amount - ( to_amount + 500 ),
                     scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
