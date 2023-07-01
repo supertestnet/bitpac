@@ -8,6 +8,7 @@ A bitpac is a cooperative whose members control some money and vote on how to sp
 # How can I try it?
 
 **Mainnet:** https://supertestnet.github.io/bitpac/
+
 **Testnet:** https://supertestnet.github.io/bitpac/?network=testnet
 
 # So is this basically a DAO?
