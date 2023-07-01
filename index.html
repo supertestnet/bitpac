@@ -370,6 +370,7 @@
                 if ( kind === 2859 ) {
                     if ( $( `.proposal_${event.id}` ) ) return;
                     var proposal = JSON.parse( content );
+                    console.log( "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
                     `;
@@ -379,8 +380,6 @@
                     div.style = "border: 1px solid black; border-radius: 1rem; padding: 1rem;"
                     div.getElementsByClassName( "proposal_name" )[ 0 ].innerText = proposal[ 0 ];
                     var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
-                    var to_amount_with_change = 0;
-                    var to_amount_without_change = 0;
                     //ensure the input(s) exist in our utxo set
                     var input_utxo_is_ours = false;
                     var utxos = JSON.parse( sessionStorage[ "utxos" ] );
@@ -401,10 +400,16 @@
                     });
                     if ( !input_utxo_is_ours ) return;
                     $( '.none_currently' ).style.display = "none";
+                    var has_change = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] ) == tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) ) ? true : false;
+                    if ( has_change ) {
+                        var change_amount = proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "value" ];
+                    } else {
+                        var change_amount = 0;
+                    }
+                    var to_amount = 0;
                     proposal[ 2 ].forEach( ( item, index ) => {
-                        to_amount_with_change = to_amount_with_change + item.value;
-                        if ( index == proposal[ 2 ].length - 1 ) return;
-                        to_amount_without_change = to_amount_without_change + item.value;
+                        if ( has_change && index == proposal[ 2 ].length - 1 ) return;
+                        to_amount = to_amount + item.value;
                         var div2 = document.createElement( "div" );
                         div2.innerHTML = `
                             <p><input class="output_addy proposed_output" disabled><input class="output_amt proposed_amt" disabled></p>
@@ -413,13 +418,7 @@
                         div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
                         div.append( div2 );
                     });
-                    var needed_change_amount = to_amount_with_change - to_amount_without_change;
-                    var fee_amount = from_amount - to_amount_with_change;
-                    var proposed_change_amount = proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "value" ];
-                    if ( proposed_change_amount != needed_change_amount ) return;
-                    var proposed_change_address = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] );
-                    var needed_change_address = tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) );
-                    if ( proposed_change_address != needed_change_address ) return;
+                    var fee_amount = from_amount - ( to_amount + change_amount );
                     var fee = document.createElement( "div" );
                     fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
                     div.append( fee );
