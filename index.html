@@ -206,7 +206,7 @@
                     var subscription = [ "REQ", subId, filter ];
                     relays[ myrelay ].addEventListener( "open", async () => {
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
-                        await waitSomeSeconds( 1 );
+                        await waitSomeSeconds( 2 );
                         relays[ myrelay ].close();
                     });
                 }
@@ -333,7 +333,7 @@
                             });
                         });
                     }
-                    var utxos = await getUTXOs( $( '.addy' ).innerText );
+                    var utxos = await getUTXOs( $( '.addy' ).innerText, mempoolNetwork );
                     sessionStorage[ "utxos" ] = JSON.stringify( utxos );
                     var full_balance = 0;
                     utxos.forEach( item => {
@@ -450,7 +450,7 @@
                             relays[ myrelay ] = new WebSocket( myrelay );
                             relays[ myrelay ].addEventListener( "open", async () => {
                                 relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 1 );
+                                await waitSomeSeconds( 2 );
                                 relays[ myrelay ].close();
                             });
                             await waitSomeSeconds( 1 );
@@ -501,7 +501,7 @@
                             relays[ myrelay ] = new WebSocket( myrelay );
                             relays[ myrelay ].addEventListener( "open", async () => {
                                 relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 1 );
+                                await waitSomeSeconds( 2 );
                                 relays[ myrelay ].close();
                             });
                             await waitSomeSeconds( 1 );
@@ -677,6 +677,10 @@
                         },
                     });
                 });
+                if ( !from_amount ) {
+                    alert( "You cannot spend without money. Please make a deposit, then try again." );
+                    return;
+                }
                 var to_amount = 0;
                 var outputs = [];
                 var there_be_dust = false;
@@ -692,7 +696,28 @@
                     alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                     return;
                 }
-                var mining_fee = 500;
+                var size_of_each_input = 0;
+                var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                    size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
+                }
+                var txsize = 0;
+                var i; for ( i=0; i<inputs.length; i++ ) {
+                    txsize = txsize + size_of_each_input;
+                }
+                var i; for ( i=0; i<outputs.length; i++ ) {
+                    //I calculate that outputs add 30 bytes apiece by
+                    //assuming the average scriptpubkey is 26 bytes
+                    //and assuming amounts are denoted in 4 bytes
+                    txsize = txsize + 30;
+                }
+                var fee_options = await getThreeFeeRates( mempoolNetwork );
+                var sats_per_byte = prompt( `Please enter a fee rate as a number. Specifically, the number of sats per byte you want to pay. The minimum rate is ${fee_options[ 0 ]}, the average rate is ${fee_options[ 1 ]}, and the urgent rate is ${fee_options[ 2 ]}.` );
+                sats_per_byte = Number( sats_per_byte );
+                if ( !sats_per_byte ) {
+                    alert( "You entered an invalid fee rate. You must enter a number greater than 0, such as 5, 10, or 25. Please try again." );
+                    return;
+                }
+                var mining_fee = txsize * sats_per_byte;
                 if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
                     outputs.push({
                         value: from_amount - ( to_amount + mining_fee ),
@@ -719,7 +744,7 @@
                     relays[ myrelay ] = new WebSocket( myrelay );
                     relays[ myrelay ].addEventListener( "open", async () => {
                         relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                        await waitSomeSeconds( 1 );
+                        await waitSomeSeconds( 2 );
                         relays[ myrelay ].close();
                     });
                 }
@@ -833,7 +858,7 @@
                     resolve( returnable );
                 });
             }
-            function getUTXOs( address ) {
+            function getUTXOs( address, network ) {
                 return new Promise( function( resolve, reject ) {
                     var xhttp = new XMLHttpRequest();
                     xhttp.onreadystatechange = function() {
@@ -850,9 +875,15 @@
                             resolve( utxos );
                         }
                     }
-                    xhttp.open( "GET", "https://mempool.space/testnet/api/address/" + address + "/utxo", true );
+                    xhttp.open( "GET", `https://mempool.space/${network}api/address/` + address + "/utxo", true );
                     xhttp.send();
                 });
+            }
+            async function getThreeFeeRates( network ) {
+                var fees = await getData("https://mempool.space/" + network + "api/v1/fees/recommended");
+                fees = JSON.parse(fees);
+                var array = [ fees["minimumFee"], fees["hourFee"], fees["fastestFee"] ];
+                return array;
             }
         </script>
     </head>
@@ -928,7 +959,7 @@
                             relays[ myrelay ] = new WebSocket( myrelay );
                             relays[ myrelay ].addEventListener( "open", async () => {
                                 relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 1 );
+                                await waitSomeSeconds( 2 );
                                 relays[ myrelay ].close();
                             });
                         }
