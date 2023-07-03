@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, user-scalable=no">
         <title>bitpac | vote with bitcoin</title>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/bitcoinjs-lib.js"></script>
+        <script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
         <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
         <script src="https://unpkg.com/@cmdcode/tapscript"></script>
         <script src="https://bundle.run/bech32@2.0.0"></script>
@@ -35,7 +36,7 @@
                 font-size: 1.15rem;
                 border: 1px solid grey;
             }
-            .multisig_viewer {
+            .multisig_viewer, .balance, .statements, .current_proposals, .past_proposals, .crafter {
                 display: none;
             }
             .select_npub, .output_addy, .output_amt {
@@ -73,10 +74,8 @@
                 display: inline-block;
                 vertical-align: middle;
             }
-            .login_form, .crafter {
-                border: 1px solid black;
-                border-radius: 1rem;
-                padding: 1rem;
+            .past_proposals {
+                margin-bottom: 1rem;
             }
             .fee_warning {
                 display: none;
@@ -84,9 +83,45 @@
                 padding: 1rem;
                 background-color: pink;
             }
+            .balance {
+                word-break: break-all;
+            }
+            .qr_code {
+                width: 100%;
+                max-width: 15rem;
+            }
+            .menu {
+                background-color: pink;
+                text-align: center;
+            }
+            .menu .menu_items .menu_internal div {
+                display: inline-block;
+                text-align: center;
+                padding: .5rem;
+                margin: .5rem;
+                border: 1px solid black;
+                font-size: 80%;
+                cursor: pointer;
+            }
+            .menu .menu_items .menu_internal span {
+                font-size: 80%;
+            }
             @media screen and (max-width: 600px) {
                 .output_addy, .output_amt, .proposed_output, .proposed_amt {
                     width: 100%;
+                }
+                .menu {
+                    cursor: pointer;
+                }
+                .menu::before {
+                    content: "☰";
+                }
+                .menu_internal {
+                    display: none;
+                    padding-bottom: .5rem;
+                }
+                .menu .menu_items .menu_internal div {
+                    display: block;
                 }
             }
         </style>
@@ -257,14 +292,14 @@
                             $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
                             $( div_to_get ).firstElementChild.style.display = "inline-block";
                             $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
-                            $( `${div_to_get} .pic` ).src = JSON.parse( content )[ "picture" ];
+                            $( `${div_to_get} .pic` ).style.backgroundImage = `url( ${JSON.parse( content )[ "picture" ]} )`;
                         }
                     } else {
                         var div_to_get = `.profile_${sessionStorage[ "identifier" ]}`;
                         $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
                         $( div_to_get ).firstElementChild.style.display = "inline-block";
                         $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
-                        $( `${div_to_get} .pic` ).src = JSON.parse( content )[ "picture" ];
+                        $( `${div_to_get} .pic` ).style.backgroundImage = `url( ${JSON.parse( content )[ "picture" ]} )`;
                     }
                 }
                 if ( kind === 2858 ) {
@@ -287,21 +322,53 @@
                     var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                     var multisig_address = tapscript.Address.p2tr.fromPubKey( tpubkey, mempoolnet );
                     console.log( "multisig address:", multisig_address );
+                    var url = "bitcoin:" + multisig_address;
+                    var a = document.createElement( "a" );
+                    a.href = url;
+                    a.target = "_blank";
+                    a.append( createQR( url ) );
+                    var div = document.createElement( "div" );
+                    div.append( a );
+                    var div_html = div.innerHTML;
                     var html = `
-                        <div class="bitpac_info">
-                            Bitpac name: ${bitpac_name}<br>
-                            Balance (usd): <span class="bitpac_balance">loading<span class="dots">.</span></span><br>
-                            Balance (sats): <span class="bitpac_balance_sats">loading<span class="dots">.</span></span><br>
-                            Policy: ${threshold} out of ${temp_multisig.length}
+                        <div class="menu" onclick='if ( window.innerWidth > 600 ) return; if ( this.getElementsByClassName( "menu_internal" )[ 0 ].style.display != "block" ) {this.getElementsByClassName( "menu_internal" )[ 0 ].style.display = "block"} else {this.getElementsByClassName( "menu_internal" )[ 0 ].style.display = "none"}'>
+                            <div class="menu_items">
+                                <div class="menu_internal">
+                                    <div class="menu_members">Members</div>
+                                    <div class="menu_balance">Balance</div>
+                                    <div class="menu_statements">Statements</div>
+                                    <div class="menu_cprops">Current proposals [<span class="cprops">0</span>]</div>
+                                    <div class="menu_pprops">Past proposals [<span class="pprops">0</span>]</div>
+                                    <div class="menu_login_or_create">Login</div>
+                                </div>
+                            </div>
                         </div>
-                        <p>Members:</p>
+                        <div class="members">
+                            <h2>Members</h2>
+                            Bitpac name: ${bitpac_name}<br>
+                            Policy: ${threshold} out of ${temp_multisig.length}
                         <div class="nostr_profiles">
                             <p class="loading_profiles">Loading<span class="dots">.</span></p>
                         </div>
-                        <p>Address: <span class="addy">${multisig_address}</span></p>
-                        <p style="font-weight: bold;">Proposals</p>
-                        <div class="proposals">
+                        </div>
+                        <div class="balance">
+                            <h2>Balance</h2>
+                            Balance (usd): <span class="bitpac_balance">loading<span class="dots">.</span></span><br>
+                            Balance (sats): <span class="bitpac_balance_sats">loading<span class="dots">.</span></span><br>
+                            Address: <span class="addy">${multisig_address}</span><br>
+                            ${div_html}
+                        </div>
+                        <div class="statements">
+                            <h2>Statements</h2>
+                            None yet
+                        </div>
+                        <div class="current_proposals">
+                            <h2>Current proposals</h2>
                             <p class="none_currently">Loading<span class="dots">.</span></p>
+                        </div>
+                        <div class="past_proposals">
+                            <h2>Past proposals</h2>
+                            None yet
                         </div>
                         <div class="crafter">
                             <p style="font-weight: bold;">Craft a proposal</p>
@@ -316,40 +383,27 @@
                             <div class="add_outputs"></div>
                             <p><button class="craft_proposal">Submit</button></p>
                         </div>
-                        <div class="login_form">
-                            <p>Log into this bitpac to make or vote on a proposal</p>
-                            <p><button class="login_btn">Log in</button></p>
-                        </div>
                     `;
                     var div = document.createElement( "div" );
                     div.innerHTML = html;
                     $( '.multisig_viewer' ).append( div );
-                    $( '.login_btn' ).onclick = () => {
-                        var nsec = prompt( "Enter your nsec" );
-                        if ( !nsec ) return;
-                        var myprivkey = privkeyFromNsec( nsec );
-                        var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
-                        if ( !multisig.includes( mypubkey ) ) {
-                            alert( "Sorry, it looks like you are not a keyholder in this bitpac" );
-                            return;
-                        }
-                        sessionStorage[ "myprivkey" ] = myprivkey;
-                        sessionStorage[ "mypubkey" ] = mypubkey;
-                        $( '.crafter' ).style.display = "block";
-                        $$( '.approve_or_deny' ).forEach( item => {
-                            item.style.display = "block";
-                        });
-                        $$( '.fee_warning' ).forEach( item => {
-                            item.style.display = "block";
-                        });
-                        $( '.login_form' ).style.display = "none";
-                        Object.keys( sigs ).forEach( item => {
-                            Object.keys( sigs[ item ] ).forEach( item2 => {
-                                if ( item2 == sessionStorage[ "mypubkey" ] ) {
-                                    $( `.proposal_${item} .deny` ).disabled = true;
-                                }
-                            });
-                        });
+                    $( '.menu_members' ).onclick = () => {
+                        showPage( "members" );
+                    }
+                    $( '.menu_balance' ).onclick = () => {
+                        showPage( "balance" );
+                    }
+                    $( '.menu_statements' ).onclick = () => {
+                        showPage( "statements" );
+                    }
+                    $( '.menu_cprops' ).onclick = () => {
+                        showPage( "current_proposals" );
+                    }
+                    $( '.menu_pprops' ).onclick = () => {
+                        showPage( "past_proposals" );
+                    }
+                    $( '.menu_login_or_create' ).onclick = () => {
+                        showPage( "login_form" );
                     }
                     $( '.craft_proposal' ).onclick = spendCoins;
                     var i; for ( i=0; i<temp_multisig.length; i++ ) {
@@ -357,7 +411,7 @@
                         var profile = document.createElement( "div" );
                         profile.className = `profile profile_${item}_${i}`;
                         profile.innerHTML = `
-                            <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                            <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                         `;
                         $$( '.nostr_profiles' )[ 1 ].append( profile );
                     }
@@ -559,7 +613,7 @@
                         </div>
                     `;
                     div.append( sigs_obtained );
-                    $( '.proposals' ).append( div );
+                    $( '.current_proposals' ).append( div );
                     if ( sessionStorage[ "myprivkey" ] ) {
                         $( '.crafter' ).style.display = "block";
                         $$( '.approve_or_deny' ).forEach( item => {
@@ -1004,6 +1058,60 @@
                 }
                 var returnable = await isResponseReady();
                 return returnable;
+            }
+            function createQR( content ) {
+                var dataUriPngImage = document.createElement( "img" ),
+                s = QRCode.generatePNG( content, {
+                    ecclevel: "M",
+                    format: "html",
+                    fillcolor: "#FFFFFF",
+                    textcolor: "#000000",
+                    margin: 4,
+                    modulesize: 8,
+                });
+                dataUriPngImage.src = s;
+                dataUriPngImage.className = "qr_code";
+                return dataUriPngImage;
+            }
+            var showPage = ( page ) => {
+                if ( page == "login_form" && !sessionStorage.myprivkey ) {
+                    login_fn();
+                    return;
+                }
+                $( '.members' ).style.display = "none";
+                $( '.balance' ).style.display = "none";
+                $( '.statements' ).style.display = "none";
+                $( '.current_proposals' ).style.display = "none";
+                $( '.past_proposals' ).style.display = "none";
+                $( '.crafter' ).style.display = "none";
+                if ( sessionStorage.myprivkey && page == "login_form" ) page = "crafter";
+                $( `.${page}` ).style.display = "block";
+            }
+            var login_fn = () => {
+                var nsec = prompt( "Enter your nsec" );
+                if ( !nsec ) return;
+                var myprivkey = privkeyFromNsec( nsec );
+                var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
+                if ( !multisig.includes( mypubkey ) ) {
+                    alert( "Sorry, it looks like you are not a keyholder in this bitpac" );
+                    return;
+                }
+                sessionStorage[ "myprivkey" ] = myprivkey;
+                sessionStorage[ "mypubkey" ] = mypubkey;
+                $( '.menu_login_or_create' ).innerText = "Craft proposal";
+                $$( '.approve_or_deny' ).forEach( item => {
+                    item.style.display = "block";
+                });
+                $$( '.fee_warning' ).forEach( item => {
+                    item.style.display = "block";
+                });
+                Object.keys( sigs ).forEach( item => {
+                    Object.keys( sigs[ item ] ).forEach( item2 => {
+                        if ( item2 == sessionStorage[ "mypubkey" ] ) {
+                            $( `.proposal_${item} .deny` ).disabled = true;
+                        }
+                    });
+                });
             }
         </script>
     </head>
