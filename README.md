@@ -38,15 +38,15 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [x] Add loading animations
 - [x] Make the page load faster
 - [x] Warn about low fees
+- [x] Display past proposals
+- [x] Improve the user interface
+- [x] Let bitpac members propose and vote on text statements, e.g. manifestos, besides monetary proposals
+- [x] Add a menu: [Members] [Balance] [Statements] [Current proposals 0] [Past proposals 5]
+- [x] On the members page show the name, the members, and the policy
+- [x] On the balance page show the balance, the address, and a qr code
 - [ ] Display a countdown on each proposal for when it disappears
-- [ ] Display past proposals
 - [ ] Fix the issue where a voter can make proposals vanish by denying them many times
-- [ ] Improve the user interface
 - [ ] Let keyholders transfer or sell their voting rights
-- [ ] Let bitpac members propose and vote on text statements, e.g. manifestos, besides monetary proposals
-- [ ] Add a menu: [Members] [Balance] [Statements] [Current proposals 0] [Past proposals 5]
-- [ ] On the members page show the name, the members, and the policy
-- [ ] On the balance page show the balance, the address, and a qr code
 - [ ] Learn why I sometimes need to reload the page and fix it so I don't
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
