@@ -134,6 +134,36 @@
             .statements .denials_needed, .statements .num_of_respondents {
                 display: none;
             }
+            .black-bg {
+                display: none;
+                width: 100%;
+                position: fixed;
+                top: 0;
+                left: 0;
+                background-color: black;
+                opacity: .5;
+                width: 100vw;
+                height: 100vh;
+            }
+            .modal {
+                display: none;
+                position: fixed;
+                box-sizing: border-box;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%,-50%);
+                width: 100%;
+                max-width: 560px;
+                background-color: white;
+                border-radius: 1rem;
+                padding: 20px;
+                color: black;
+                text-align: center;
+                word-wrap: break-word;
+            }
+            .modal * {
+                color: black;
+            }
             @media screen and (max-width: 600px) {
                 .output_addy, .output_amt, .proposed_output, .proposed_amt {
                     width: 100%;
@@ -210,7 +240,7 @@
             }
             function addNpub( element ) {
                 if ( $$( '.select_npub' ).length >= 67 ) {
-                    alert( "max number of keys for the multisig is 67" );
+                    showModal( "max number of keys for the multisig is 67" );
                     return;
                 }
                 if ( element && $$( '.select_npub' ).length < 67 ) {
@@ -805,7 +835,7 @@
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
                         if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
-                        if ( txdata && !dont_broadcast.includes( proposal ) ) alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
+                        if ( txdata && !dont_broadcast.includes( proposal ) ) showModal( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                     }
                 }
             }
@@ -865,7 +895,7 @@
                         });
                     });
                     if ( !from_amount ) {
-                        alert( "You cannot spend without money. Please make a deposit, then try again." );
+                        showModal( "You cannot spend without money. Please make a deposit, then try again." );
                         return;
                     }
                     var to_amount = 0;
@@ -879,11 +909,11 @@
                         if ( Number( $$( '.add_outputs .output_amt' )[ index ].value ) < 546 ) there_be_dust = true;
                     });
                     if ( there_be_dust ) {
-                        alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
+                        showModal( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                         return;
                     }
                     if ( from_amount - to_amount == 0 ) {
-                        alert( "You must leave enough to pay a mining fee, please try again" );
+                        showModal( "You must leave enough to pay a mining fee, please try again" );
                         return;
                     }
                     var size_of_each_input = 0;
@@ -904,12 +934,12 @@
                     var sats_per_byte = prompt( `Please enter a fee rate as a number. Specifically, the number of sats per byte you want to pay. The minimum rate is ${fee_options[ 0 ]}, the average rate is ${fee_options[ 1 ]}, and the urgent rate is ${fee_options[ 2 ]}.` );
                     sats_per_byte = Number( sats_per_byte );
                     if ( !sats_per_byte ) {
-                        alert( "You entered an invalid fee rate. You must enter a number greater than 0, such as 5, 10, or 25. Please try again." );
+                        showModal( "You entered an invalid fee rate. You must enter a number greater than 0, such as 5, 10, or 25. Please try again." );
                         return;
                     }
                     var mining_fee = txsize * sats_per_byte;
                     if ( from_amount - to_amount < mining_fee ) {
-                        alert( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
+                        showModal( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
                         return;
                     }
                     if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
@@ -1174,7 +1204,7 @@
                 var myprivkey = privkeyFromNsec( nsec );
                 var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
                 if ( !multisig.includes( mypubkey ) ) {
-                    alert( "Sorry, it looks like you are not a keyholder in this bitpac" );
+                    showModal( "Sorry, it looks like you are not a keyholder in this bitpac" );
                     return;
                 }
                 sessionStorage[ "myprivkey" ] = myprivkey;
@@ -1193,6 +1223,16 @@
                         }
                     });
                 });
+            }
+            function modalVanish() {
+                $( ".black-bg" ).style.display = "none";
+                $( ".modal" ).style.display = "none";
+            }
+            function showModal( content ) {
+                $( ".modal" ).innerHTML = `<div style="position: absolute;right: 1rem;top: 0.5rem;font-size: 2rem; cursor: pointer; color: black;" onclick="modalVanish()">&times;</div>`;
+                $( ".modal" ).innerHTML += `<div style="overflow-y: scroll; max-height: 80vh; margin-top: 1.5rem;">${content}</div>`;
+                $( ".black-bg" ).style.display = "block";
+                $( ".modal" ).style.display = "block";
             }
         </script>
     </head>
@@ -1241,7 +1281,7 @@
                             }
                         });
                         if ( !keep_going ) {
-                            alert( "One of your npubs is invalid or empty, please fix it and try again" );
+                            showModal( "One of your npubs is invalid or empty, please fix it and try again" );
                             return;
                         }
                         var conf_message = `Are you sure you want to use a policy of ${String( $( '.select_threshold' ).value )} out of ${String( $$( '.select_npub' ).length )}?`;
@@ -1274,7 +1314,7 @@
                                 relays[ myrelay ].close();
                             });
                         }
-                        alert( `Success, your multisig is created and can be viewed and managed here:\n\n${url}` );
+                        showModal( `Success, your multisig is created and can be viewed and managed here:\n\n${url}` );
                     }
                 } else {
                     $( '.multisig_creator' ).style.display = "none";
@@ -1320,5 +1360,7 @@
             sessionStorage[ "loop_num" ] = "3";
             getUtxosOnLoop();
         </script>
+        <div class="black-bg" onclick="modalVanish();"></div>
+        <div class="modal"></div>
     </body>
 </html>
