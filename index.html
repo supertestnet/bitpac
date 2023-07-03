@@ -221,9 +221,9 @@
             var relays = {
                 'wss://relay.damus.io': null,
                 'wss://relay.honk.pw/': null,
-                'wss://relay.nostr.band/': null,
-                'wss://nos.lol/': null,
-                'wss://zee-relay.fly.dev': null
+                'wss://nostr.randomdevelopment.biz': null,
+                'wss://relay.honk.pw': null,
+                // 'wss://zee-relay.fly.dev': null
             }
             sessionStorage[ "utxos" ] = "[]";
             var getting_info_for = [];
@@ -310,21 +310,16 @@
                 sessionStorage[ identifier ] = npub;
                 sessionStorage[ "identifier" ] = identifier;
                 sessionStorage[ "npub" ] = npub;
-                var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                     var myrelay = Object.keys( relays )[ i ];
-                    relays[ myrelay ] = new WebSocket( myrelay );
-                    await waitSomeSeconds( 0.3 );
-                    relays[ myrelay ].addEventListener( "message", handleMessage );
+                    await fixReadyState( myrelay );
                     var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                     var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ] }
                     var subscription = [ "REQ", subId, filter ];
-                    relays[ myrelay ].addEventListener( "open", async () => {
-                        try {
-                            relays[ myrelay ].send( JSON.stringify( subscription ) );
-                        } catch( e ) {}
-                        await waitSomeSeconds( 2 );
-                        relays[ myrelay ].close();
-                    });
+                    relays[ myrelay ].addEventListener( "message", handleMessage );
+                    relays[ myrelay ].send( JSON.stringify( subscription ) );
+                    await waitSomeSeconds( 2 );
+                    relays[ myrelay ].close();
                 }
             }
             function pubkeyFromNpub(npub) {
@@ -490,21 +485,24 @@
                         `;
                         $$( '.nostr_profiles' )[ 1 ].append( profile );
                     }
-                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
+                        await fixReadyState( myrelay );
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter = { authors: temp_multisig, kinds: [ 0 ] }
                         var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
                         var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ], since: one_month_ago }
                         var subscription = [ "REQ", subId, filter, filter2 ];
-                        await waitSomeSeconds( 2 );
+                        relays[ myrelay ].addEventListener( "message", handleMessage );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
                     }
                     $( '.none_currently' ).innerText = "None currently";
                     addOutput();
                 }
                 if ( kind === 2859 ) {
+                    await waitForBalanceToLoad();
                     if ( $( `.proposal_${event.id}` ) ) return;
+                    console.log( `nothing equivalent to proposal_${event.id} exists!` );
                     var proposal = JSON.parse( content );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
@@ -562,7 +560,7 @@
                             div.append( div2 );
                         });
                         var fee_amount = from_amount - ( to_amount + change_amount );
-                        if ( !fee_amount ) {
+                        if ( fee_amount < 1 ) {
                             var number_of_visible_proposals = 0;
                             $$( '.current_proposals .proposal_div' ).forEach( item => {
                                 if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
@@ -626,18 +624,16 @@
                             "pubkey"     : pubKey,
                         }
                         var signedEvent = await getSignedEvent(reply, seckey);
-                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
-                            relays[ myrelay ] = new WebSocket( myrelay );
-                            relays[ myrelay ].addEventListener( "open", async () => {
-                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 2 );
-                                relays[ myrelay ].close();
-                            });
-                            await waitSomeSeconds( 1 );
+                            await fixReadyState( myrelay );
+                            relays[ myrelay ].addEventListener( "message", handleMessage );
+                            relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                            await waitSomeSeconds( 2 );
+                            relays[ myrelay ].close();
                         }
                         console.log( "denied!" );
-                        window.location.reload();
+                        // window.location.reload();
                     }
                     div.getElementsByClassName( "approve" )[ 0 ].onclick = async () => {
                         var inputs = proposal[ 1 ];
@@ -677,18 +673,14 @@
                             "pubkey"     : pubKey,
                         }
                         var signedEvent = await getSignedEvent(reply, seckey);
-                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
-                            relays[ myrelay ] = new WebSocket( myrelay );
-                            relays[ myrelay ].addEventListener( "open", async () => {
-                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 2 );
-                                relays[ myrelay ].close();
-                            });
-                            await waitSomeSeconds( 1 );
+                            await fixReadyState( myrelay );
+                            relays[ myrelay ].addEventListener( "message", handleMessage );
+                            relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                         }
                         console.log( "approved!" );
-                        window.location.reload();
+                        // window.location.reload();
                     }
                     var sigs_obtained = document.createElement( "div" );
                     sigs_obtained.innerHTML = `
@@ -703,20 +695,21 @@
                     div.append( sigs_obtained );
                     $( '.current_proposals' ).append( div );
                     if ( sessionStorage[ "myprivkey" ] ) {
-                        $$( '.approve_or_deny' ).forEach( item => {
+                        $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                             item.style.display = "block";
                         });
-                        $$( '.fee_warning' ).forEach( item => {
+                        $$( '.current_proposals .fee_warning' ).forEach( item => {
                             item.style.display = "block";
                         });
                     }
                     $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
-                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
+                        await fixReadyState( myrelay );
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter = { authors: temp_multisig, kinds: [ 2860 ], "#e": [ event.id ] }
                         var subscription = [ "REQ", subId, filter ];
-                        await waitSomeSeconds( 1 );
+                        relays[ myrelay ].addEventListener( "message", handleMessage );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
                     }
                 }
@@ -736,7 +729,10 @@
                         $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
-                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
+                        if ( !number_of_visible_proposals ) {
+                            // $( '.cprops' ).innerText = 0;
+                            $( '.none_currently' ).style.display = "block";
+                        }
                     } else {
                         if ( proposal in sigs && Object.keys( sigs[ proposal ] ).length >= threshold ) return;
                         if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
@@ -820,6 +816,7 @@
                         Object.keys( sigs[ proposal ] ).forEach( item => {
                             if ( sigs[ proposal ][ item ] != 1 ) it_was_only_a_statement = false;
                         });
+                        $( `.proposal_${proposal}` ).getElementsByClassName( "approve_or_deny" )[ 0 ].style.display = "none";
                         if ( it_was_only_a_statement ) {
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
@@ -831,13 +828,15 @@
                             $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
                             $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank">View this transaction, which was approved</a></p>`;
                         }
-                        $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
                         $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
-                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
+                        if ( !number_of_visible_proposals ) {
+                            $( '.cprops' ).innerText = 0;
+                            $( '.none_currently' ).style.display = "block";
+                        }
                         if ( txdata && !dont_broadcast.includes( proposal ) ) showModal( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                     }
                 }
@@ -965,15 +964,11 @@
                     "pubkey"     : pubKey,
                 }
                 var signedEvent = await getSignedEvent(event, seckey);
-                var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                     var myrelay = Object.keys( relays )[ i ];
-                    relays[ myrelay ] = new WebSocket( myrelay );
-                    relays[ myrelay ].addEventListener( "open", async () => {
-                        relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                        await waitSomeSeconds( 2 );
-                        relays[ myrelay ].close();
-                    });
-                    await waitSomeSeconds( 0.3 );
+                    await fixReadyState( myrelay );
+                    relays[ myrelay ].addEventListener( "message", handleMessage );
+                    relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                 }
                 setTimeout( function() {$( '.menu_cprops' ).click();}, 1500 );
             }
@@ -1213,10 +1208,10 @@
                 sessionStorage[ "myprivkey" ] = myprivkey;
                 sessionStorage[ "mypubkey" ] = mypubkey;
                 $( '.menu_login_or_create' ).innerText = "Craft proposal";
-                $$( '.approve_or_deny' ).forEach( item => {
+                $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                     item.style.display = "block";
                 });
-                $$( '.fee_warning' ).forEach( item => {
+                $$( '.current_proposals .fee_warning' ).forEach( item => {
                     item.style.display = "block";
                 });
                 Object.keys( sigs ).forEach( item => {
@@ -1236,6 +1231,36 @@
                 $( ".modal" ).innerHTML += `<div style="overflow-y: scroll; max-height: 80vh; margin-top: 1.5rem;">${content}</div>`;
                 $( ".black-bg" ).style.display = "block";
                 $( ".modal" ).style.display = "block";
+            }
+            var fixReadyState = async relay => {
+                var relay_is_good = !!relays[ relay ] && relays[ relay ].readyState == 1;
+                if ( !!relays[ relay ] ) {
+                    // console.log( "good so far" );
+                    if ( relays[ relay ].readyState == 1 ) {
+                        // console.log( "even better" );
+                        return true;
+                    } else {
+                        relays[ relay ] = new WebSocket( relay );
+                        await waitSomeSeconds( 1 );
+                        if ( relays[ relay ].readyState == 1 ) {
+                            // console.log( "ready state is good!", relays[ relay ].readyState );
+                            return true;
+                        } else {
+                            // console.log( "ready state is bad", relays[ relay ].readyState );
+                        }
+                    }
+                } else {
+                    relays[ relay ] = new WebSocket( relay );
+                }
+                await waitSomeSeconds( 1 );
+                console.log( "fixing this relay:", relay );
+                // console.log( "relay is good, right?", relay_is_good, "I mean there is a websocket there, right?", !!relays[ relay ], "and it has a connection right?", relays[ relay ].readyState );
+                return fixReadyState( relay );
+            }
+            var waitForBalanceToLoad = async () => {
+                if ( !isNaN( $( '.bitpac_balance_sats' ).innerText ) ) return;
+                await waitSomeSeconds( 1 );
+                return waitForBalanceToLoad();
             }
         </script>
     </head>
@@ -1308,31 +1333,25 @@
                         var note_id = signedEvent.id;
                         var divider = window.location.href.includes( "?" ) ? "&" : "?";
                         var url = window.location.href + divider + "multisig=" + note_id;
-                        var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                        var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
-                            relays[ myrelay ] = new WebSocket( myrelay );
-                            relays[ myrelay ].addEventListener( "open", async () => {
-                                relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
-                                await waitSomeSeconds( 2 );
-                                relays[ myrelay ].close();
-                            });
+                            await fixReadyState( myrelay );
+                            relays[ myrelay ].addEventListener( "message", handleMessage );
+                            relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                         }
                         showModal( `Success, your multisig is created and can be viewed and managed here:\n\n${url}` );
                     }
                 } else {
                     $( '.multisig_creator' ).style.display = "none";
                     $( '.multisig_viewer' ).style.display = "block";
-                    var i; for ( i=0; i<Object.keys( relays ).length; i++) {
+                    var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
-                        relays[ myrelay ] = new WebSocket( myrelay );
+                        await fixReadyState( myrelay );
                         relays[ myrelay ].addEventListener( "message", handleMessage );
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter  = { "ids": [ $_GET[ "multisig"] ] }
                         var subscription = [ "REQ", subId, filter ];
-                        relays[ myrelay ].addEventListener( "open", async () => {
-                            relays[ myrelay ].send( JSON.stringify( subscription ) );
-                        });
-                        await waitSomeSeconds( 0.3 );
+                        relays[ myrelay ].send( JSON.stringify( subscription ) );
                     }
                 }
             }
