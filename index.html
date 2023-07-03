@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, user-scalable=no">
-        <title>Bitpac | Publicly auditable cooperatives on bitcoin</title>
+        <title>bitpac | social bitcoin</title>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/bitcoinjs-lib.js"></script>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
         <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
@@ -258,7 +258,7 @@
                 var profile = document.createElement( "div" );
                 profile.className = `profile profile_${identifier}`;
                 profile.innerHTML = `
-                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                 `;
                 $( '.nostr_profiles' ).append( profile );
                 $( '.multisig_num' ).innerText = $$( '.select_npub' ).length;
@@ -270,7 +270,7 @@
                 if ( !npub ) {
                     npub = $( div_to_get ).getAttribute( "data-npub" );
                     $( div_to_get ).innerHTML = `
-                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><p style="color: black;"><img class="pic" style="width: 100%"><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                     `;
                     getting_info_for.splice( getting_info_for.indexOf( JSON.stringify( [ npub, identifier ] ) ), 1 );
                     return;
