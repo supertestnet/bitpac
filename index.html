@@ -11,10 +11,6 @@
         <script src="https://bundle.run/bech32@2.0.0"></script>
         <script src="https://bundle.run/buffer@6.0.3"></script>
         <script>var Buffer = buffer.Buffer;</script>
-        <script>
-            if ( !window.location.href.includes( "index.htm" ) )
-                window.location.href = "https://" + window.location.hostname + "/onboard.html";
-        </script>
         <style>
             * {
                 box-sizing: border-box;
@@ -160,6 +156,12 @@
             var url_keys = url_params.keys();
             var $_GET = {}
             for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
+        </script>
+        <script>
+            if ( !window.location.href.includes( "index.htm" ) ) {
+                var url = "https://" + window.location.hostname + "/onboard.html";
+                if ( $_GET[ "network" ] ) url += "?network=" + $_GET[ "network" ];
+            }
         </script>
         <script>
             var mempoolnet = "mainnet"; //the full word: mainnet | testnet (works for signet too) | regtest
