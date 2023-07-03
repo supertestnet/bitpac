@@ -143,5 +143,16 @@
 	    		<a href="https://bitpac.org/index.html" class="create">create</a>
 	    	</div>
 	    </div>
+	    <script>
+	    	var $ = document.querySelector.bind( document );
+	    	var $$ = document.querySelectorAll.bind( document );
+    		var url_params = new URLSearchParams( window.location.search );
+    		var url_keys = url_params.keys();
+    		var $_GET = {}
+    		for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
+    		if ( $_GET[ "network" ] ) {
+    			$$( '.create' ).href += `?network=${$_GET[ "network" ]}`;
+    		}
+	    </script>
     </body>
 </html>
