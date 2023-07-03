@@ -767,7 +767,9 @@
                             sessionStorage[ "loop_num" ] = "2";
                         } else if ( txdata ) {
                             var txid = tapscript.Tx.util.getTxid( txdata );
-                            $( `.proposal_${proposal}` ).setAttribute( "data-txid", txid );
+                            $( `.proposal_${proposal}` ).setAttribute( "txhex", tapscript.Tx.encode( txdata ).hex );
+                            var rand = ( Math.floor( Math.random() * 12000 ) );
+                            setTimeout( function() {pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );}, Number( rand ) + 3000 );
                         }
                         // $( `.proposal_${proposal}` ).style.display = "none";
                         var it_was_only_a_statement = true;
