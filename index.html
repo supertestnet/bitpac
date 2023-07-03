@@ -319,7 +319,9 @@
                     var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ] }
                     var subscription = [ "REQ", subId, filter ];
                     relays[ myrelay ].addEventListener( "open", async () => {
-                        relays[ myrelay ].send( JSON.stringify( subscription ) );
+                        try {
+                            relays[ myrelay ].send( JSON.stringify( subscription ) );
+                        } catch( e ) {}
                         await waitSomeSeconds( 2 );
                         relays[ myrelay ].close();
                     });
