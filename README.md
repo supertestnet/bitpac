@@ -44,7 +44,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [x] Add a menu: [Members] [Balance] [Statements] [Current proposals 0] [Past proposals 5]
 - [x] On the members page show the name, the members, and the policy
 - [x] On the balance page show the balance, the address, and a qr code
-- [ ] Make a splash page
+- [x] Make a splash page
 - [ ] Display a countdown on each proposal for when it disappears
 - [ ] Fix the issue where a voter can make proposals vanish by denying them many times
 - [ ] Let keyholders transfer or sell their voting rights
