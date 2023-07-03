@@ -151,7 +151,9 @@
     		var $_GET = {}
     		for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
     		if ( $_GET[ "network" ] ) {
-    			$$( '.create' ).href += `?network=${$_GET[ "network" ]}`;
+    			$$( '.create' ).forEach( item => {
+    				item.href += `?network=${$_GET[ "network" ]}`;
+    			});
     		}
 	    </script>
     </body>
