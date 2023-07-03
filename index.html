@@ -303,7 +303,6 @@
                 var [ type, subId, event ] = JSON.parse( message.data );
                 var { kind, content } = event || {}
                 if ( !event || event === true ) return;
-                // console.log('message:', event);
                 if ( kind === 4 ) {
                     content = await decrypt(privKey, event.pubkey, content);
                 }
@@ -341,12 +340,10 @@
                     });
                     var pubkey = "ab".repeat( 32 );
                     script.push( threshold, "OP_EQUAL" );
-                    // console.log( "script:", script );
                     var sbytes = tapscript.Script.encode( script );
                     var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
                     var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                     var multisig_address = tapscript.Address.p2tr.fromPubKey( tpubkey, mempoolnet );
-                    console.log( "multisig address:", multisig_address );
                     var url = "bitcoin:" + multisig_address;
                     var a = document.createElement( "a" );
                     a.href = url;
@@ -462,10 +459,8 @@
                     addOutput();
                 }
                 if ( kind === 2859 ) {
-                    // console.log( 0, event.id );
                     if ( $( `.proposal_${event.id}` ) ) return;
                     var proposal = JSON.parse( content );
-                    // console.log( proposal[ 0 ], "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
                         <div class="proposal_statement"></div>
@@ -479,7 +474,6 @@
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerHTML += "<br><br>";
                     }
-                    // console.log( 1, event.id );
                     if ( !proposal[ 1 ].length && !proposal[ 3 ] ) return;
                     if ( proposal[ 1 ].length && proposal[ 2 ].length ) {
                         var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
@@ -664,7 +658,6 @@
                     div.append( sigs_obtained );
                     $( '.current_proposals' ).append( div );
                     if ( sessionStorage[ "myprivkey" ] ) {
-                        $( '.crafter' ).style.display = "block";
                         $$( '.approve_or_deny' ).forEach( item => {
                             item.style.display = "block";
                         });
@@ -911,10 +904,6 @@
                             scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
                         });
                     }
-                    // var txdata = tapscript.Tx.create({
-                    //   vin  : inputs,
-                    //   vout : outputs
-                    // });
                 }
                 var seckey = sessionStorage[ "myprivkey" ];
                 var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
