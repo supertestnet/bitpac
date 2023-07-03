@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@700&display=swap" rel="stylesheet">
+        <style>
+            * {
+                box-sizing: border-box;
+                font-size: 1.15rem;
+                font-family: Arial, sans-serif;
+            }
+            body {
+            	margin: 0;
+            	background-color: #fffdf0;
+            }
+            .inner {
+                max-width: 1120px;
+                padding: 3rem 1rem;
+                margin: auto;
+                line-height: 1.25;
+            }
+            .navbar {
+            	padding: 1rem 1rem;
+            	border-bottom: 1px solid black;
+            }
+            .navbar div {
+            	display: flex;
+            	justify-content: space-between;
+            	max-width: 950px;
+            	margin: auto;
+            }
+            .logo {
+            	font-family: 'Dancing Script', cursive;
+            	font-weight: bold;
+            	font-size: 150%;
+            	color: red;
+            	text-decoration: none;
+            }
+            .create {
+            	display: block;
+            	padding: .4rem;
+            	background-color: red;
+            	color: white;
+            	font-weight: bold;
+            	border-radius: 1rem;
+            	width: 5.5rem;
+            	text-align: center;
+            	cursor: pointer;
+            	box-shadow: 2px 2px 6px black;
+            	text-decoration: none;
+            }
+            .left {
+            	max-width: 23rem;
+            }
+            .right {
+            	max-width: 23rem;
+            }
+            .row {
+            	display: flex;
+            	justify-content: space-around;
+            	flex-wrap: wrap;
+            	align-items: center;
+            }
+            .row2 {
+            	flex-direction: column;
+            }
+            .row p {
+            	margin-top: 0px;
+            	text-align: center;
+            	max-width: 40rem;
+            	font-size: 90%;
+            }
+            .row .left p {
+            	text-align: left;
+            }
+            .row3 .col {
+            	text-align: center;
+            	max-width: 15rem;
+            }
+            .row3 .col div {
+            	color: purple;
+            	font-weight: bold;
+            	font-size: 100%;
+            	margin: 1rem 0;
+            }
+            h1 {
+            	font-size: 200%;
+            	font-family: Sarabun, sans-serif;
+            	font-weight: bold;
+            }
+            img {
+            	margin-top: 1rem;
+            	width: 100%;
+            	box-shadow: 2px 2px 6px black;
+            }
+        </style>
+    </head>
+    <body>
+    	<div class="navbar">
+    		<div>
+	    		<a href="https://bitpac.org/" class="logo">bitpac</a>
+	    		<a href="https://bitpac.org/index.html" class="create">create</a>
+    		</div>
+    	</div>
+    	<div class="inner">
+    		<div class="row">
+    			<div class="left">
+		    		<h1>Create a bitpac, vote&nbsp;on statements, and control a treasury</h1>
+		    		<p>A bitpac is a publicly auditable cooperative that lives on bitcoin. Use this site to create a bitpac so that you and the other members of your cooperative can control some money and vote on how to spend it.</p>
+		    		<a href="https://bitpac.org/index.html" class="create">create</a>
+		    	</div>
+		    	<div class="right">
+		    		<img src="https://images.unsplash.com/photo-1511988617509-a57c8a288659?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=871&q=80">
+		    	</div>
+	    	</div>
+	    	<div class="row row2">
+	    		<h1>How bitpac works</h1>
+	    		<p>Bitpac uses nostr to let you define the members of your cooperative. Bitcoin's multisig technology lets you jointly hold a treasury address and vote on how to spend it.</p>
+	    	</div>
+	    	<div class="row row3">
+	    		<div class="col">
+	    			<img src="https://images.unsplash.com/photo-1470753323753-3f8091bb0232?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=870&q=80">
+	    			<div>Create a bitpac</div>
+	    			<p>Define the members of your group</p>
+	    		</div>
+	    		<div class="col">
+	    			<img src="https://images.unsplash.com/photo-1494172961521-33799ddd43a5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=871&q=80">
+	    			<div>Vote on statements</div>
+	    			<p>Amplify your voice with the power of joint statements</p>
+	    		</div>
+	    		<div class="col">
+	    			<img src="https://plus.unsplash.com/premium_photo-1681491203294-d87c3028b76f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTN8fHdhbGxldHxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&w=400&q=60">
+	    			<div>Control a treasury</div>
+	    			<p>Use the funds at your disposal to make real change in the world</p>
+	    		</div>
+	    	</div>
+	    	<div class="row row2">
+	    		<h1>Get started today</h1>
+	    		<a href="https://bitpac.org/index.html" class="create">create</a>
+	    	</div>
+	    </div>
+    </body>
+</html>
