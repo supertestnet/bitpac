@@ -176,6 +176,7 @@
             }
             var getting_info_for = [];
             var threshold = null;
+            var dont_broadcast = [];
             var sigs = {}
             var sha256  = bitcoinjs.crypto.sha256;
             var { getSharedSecret, schnorr, utils } = nobleSecp256k1;
@@ -450,6 +451,7 @@
                     addOutput();
                 }
                 if ( kind === 2859 ) {
+                    // console.log( 0, event.id );
                     if ( $( `.proposal_${event.id}` ) ) return;
                     var proposal = JSON.parse( content );
                     // console.log( proposal[ 0 ], "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
@@ -466,8 +468,9 @@
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerHTML += "<br><br>";
                     }
+                    // console.log( 1, event.id );
                     if ( !proposal[ 1 ].length && !proposal[ 3 ] ) return;
-                    if ( proposal[ 1 ].length && proposal[ 2 ] ) {
+                    if ( proposal[ 1 ].length && proposal[ 2 ].length ) {
                         var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
                         //ensure the input(s) exist in our utxo set
                         var input_utxo_is_ours = false;
@@ -487,7 +490,8 @@
                             }
                             return true;
                         });
-                        if ( !input_utxo_is_ours ) return;
+                        div.setAttribute( "data-input_utxo_does_not_exist", "true" );
+                        dont_broadcast.push( event.id );
                         $( '.none_currently' ).style.display = "none";
                         var has_change = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] ) == tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) ) ? true : false;
                         if ( has_change ) {
@@ -510,13 +514,14 @@
                         var fee_amount = from_amount - ( to_amount + change_amount );
                         if ( !fee_amount ) {
                             var number_of_visible_proposals = 0;
-                            $$( '.proposal_div' ).forEach( item => {
+                            $$( '.current_proposals .proposal_div' ).forEach( item => {
                                 if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                             });
                             if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
                             return;
                         }
                         var fee = document.createElement( "div" );
+                        fee.className = "fee_parent";
                         fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
                         //check for low fees and warn if too low
                         var size_of_each_input = 0;
@@ -679,7 +684,7 @@
                         if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
                         $( `.proposal_${proposal}` ).style.display = "none";
                         var number_of_visible_proposals = 0;
-                        $$( '.proposal_div' ).forEach( item => {
+                        $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
                         if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
@@ -752,9 +757,12 @@
                             temp_multisig.reverse();
                             if ( txdata ) txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
                         }
-                        if ( txdata ) {
+                        if ( txdata && !dont_broadcast.includes( proposal ) ) {
                             var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
                             sessionStorage[ "loop_num" ] = "2";
+                        } else if ( txdata ) {
+                            var txid = tapscript.Tx.util.getTxid( txdata );
+                            $( `.proposal_${proposal}` ).setAttribute( "data-txid", txid );
                         }
                         // $( `.proposal_${proposal}` ).style.display = "none";
                         var it_was_only_a_statement = true;
@@ -764,17 +772,22 @@
                         if ( it_was_only_a_statement ) {
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
+                            var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
+                            $( '.no_past_proposals' ).style.display = "none";
+                            $( '.past_proposals' ).append( second_statement );
                         } else {
                             $( '.no_past_proposals' ).style.display = "none";
                             $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
+                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank">View this transaction, which was approved</a></p>`;
                         }
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
+                        $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
-                        $$( '.proposal_div' ).forEach( item => {
+                        $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
                         if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
-                        if ( txdata ) alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
+                        if ( txdata && !dont_broadcast.includes( proposal ) ) alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                     }
                 }
             }
