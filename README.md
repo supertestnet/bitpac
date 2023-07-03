@@ -11,6 +11,10 @@ A bitpac is a cooperative whose members control some money and vote on how to sp
 
 **Testnet:** https://bitpac.org/?network=testnet
 
+# Video
+
+[![](https://bitpac.org/bitpac-thumbnail-with-youtube-logo.jpg)](https://www.youtube.com/watch?v=RLh4CF7Sd_w)
+
 # So is this basically a DAO?
 
 The short answer is yes. The long answer is no. Daos are supposed to be autonomous, which, at least to me, means humans do not control the decisions they make. Eth people have ruined the meaning of dao and turned it into "a smart conract where keyholders vote on how to spend some money." By that definition, yes, a bitpac is a dao. But to me, that's a perversion of the meaning. The only true dao would be a robot: a dao completely controlled by software. If actual *people* control the dao's money (through voting), then it's not a dao in my opinion, it's some kind of corporation -- in bitpac's case, a cooperative.
