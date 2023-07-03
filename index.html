@@ -164,6 +164,7 @@
             if ( !window.location.href.includes( "index.htm" ) ) {
                 var url = "https://" + window.location.hostname + "/onboard.html";
                 if ( $_GET[ "network" ] ) url += "?network=" + $_GET[ "network" ];
+                window.location.href = url;
             }
         </script>
         <script>
