@@ -29,14 +29,18 @@
             h2 {
                 font-size: 1.5rem;
             }
-            input {
+            input, textarea {
                 line-height: 1.25;
                 width: 100%;
                 height: 1.8rem;
                 font-size: 1.15rem;
                 border: 1px solid grey;
             }
-            .multisig_viewer, .balance, .statements, .current_proposals, .past_proposals, .crafter {
+            textarea {
+                height: 8rem;
+            }
+            .multisig_viewer, .balance, .statements, .current_proposals,
+            .past_proposals, .crafter, .spend_info {
                 display: none;
             }
             .select_npub, .output_addy, .output_amt {
@@ -105,6 +109,17 @@
             }
             .menu .menu_items .menu_internal span {
                 font-size: 80%;
+            }
+            .will_spend_parent {
+                display: flex;
+                align-items: center;
+            }
+            .will_spend {
+                width: auto;
+                margin-right: .5rem;
+            }
+            .statements .denials_needed, .statements .num_of_respondents {
+                display: none;
             }
             @media screen and (max-width: 600px) {
                 .output_addy, .output_amt, .proposed_output, .proposed_amt {
@@ -360,7 +375,7 @@
                         </div>
                         <div class="statements">
                             <h2>Statements</h2>
-                            None yet
+                            <p class="no_statements">None yet</p>
                         </div>
                         <div class="current_proposals">
                             <h2>Current proposals</h2>
@@ -368,19 +383,25 @@
                         </div>
                         <div class="past_proposals">
                             <h2>Past proposals</h2>
-                            None yet
+                            <p class="no_past_proposals">None yet</p>
                         </div>
                         <div class="crafter">
                             <p style="font-weight: bold;">Craft a proposal</p>
-                            <p>Briefly describe your proposal</p>
+                            <p>Briefly name or describe your proposal</p>
                             <p><input class="proposal_desc"></p>
-                            <p>How do you want to spend the money?</p>
+                            <p>Propose a statement (optional)</p>
+                            <p><textarea class="statement"></textarea></p>
+                            <p class="will_spend_parent" onclick='if ( $( ".spend_info" ).style.display != "block" ) {$( ".spend_info" ).style.display = "block";$( ".will_spend" ).checked = true;} else {$( ".spend_info" ).style.display = "none";$( ".will_spend" ).checked = false;}'>
+                                <input type="checkbox" class="will_spend" name="will_spend">
+                                <label for="will_spend">I want to spend some money</label>
+                            </p>
                             <div class="spend_info">
+                                <p>How do you want to spend the money?</p>
                                 Balance (usd): <span class="bitpac_balance">loading<span class="dots">.</span></span><br>
                                 Balance (sats): <span class="bitpac_balance_sats">loading<span class="dots">.</span></span>
                                 <br><br>
+                                <div class="add_outputs"></div>
                             </div>
-                            <div class="add_outputs"></div>
                             <p><button class="craft_proposal">Submit</button></p>
                         </div>
                     `;
@@ -434,90 +455,98 @@
                     // console.log( proposal[ 0 ], "inputs:", proposal[ 1 ], "outputs:", proposal[ 2 ] );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
+                        <div class="proposal_statement"></div>
                     `;
                     var div = document.createElement( "div" );
                     div.innerHTML = html;
                     div.className = `proposal_div proposal_${event.id}`;
                     div.style = "border: 1px solid black; border-radius: 1rem; padding: 1rem;"
                     div.getElementsByClassName( "proposal_name" )[ 0 ].innerText = proposal[ 0 ];
-                    var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
-                    //ensure the input(s) exist in our utxo set
-                    var input_utxo_is_ours = false;
-                    var utxos = JSON.parse( sessionStorage[ "utxos" ] );
-                    var stringified_utxos = [];
-                    utxos.forEach( item => {
-                        stringified_utxos.push( JSON.stringify( item ) );
-                    });
-                    proposal[ 1 ].every( item => {
-                        var txid = item[ "txid" ];
-                        var vout = item[ "vout" ];
-                        var amt = item[ "prevout" ][ "value" ];
-                        var stringified_input = JSON.stringify( [txid, vout, amt] );
-                        if ( stringified_utxos.includes( stringified_input ) ) {
-                            input_utxo_is_ours = true;
+                    if ( proposal[ 3 ] ) {
+                        div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
+                        div.getElementsByClassName( "proposal_statement" )[ 0 ].innerHTML += "<br><br>";
+                    }
+                    if ( !proposal[ 1 ].length && !proposal[ 3 ] ) return;
+                    if ( proposal[ 1 ].length && proposal[ 2 ] ) {
+                        var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
+                        //ensure the input(s) exist in our utxo set
+                        var input_utxo_is_ours = false;
+                        var utxos = JSON.parse( sessionStorage[ "utxos" ] );
+                        var stringified_utxos = [];
+                        utxos.forEach( item => {
+                            stringified_utxos.push( JSON.stringify( item ) );
+                        });
+                        proposal[ 1 ].every( item => {
+                            var txid = item[ "txid" ];
+                            var vout = item[ "vout" ];
+                            var amt = item[ "prevout" ][ "value" ];
+                            var stringified_input = JSON.stringify( [txid, vout, amt] );
+                            if ( stringified_utxos.includes( stringified_input ) ) {
+                                input_utxo_is_ours = true;
+                                return;
+                            }
+                            return true;
+                        });
+                        if ( !input_utxo_is_ours ) return;
+                        $( '.none_currently' ).style.display = "none";
+                        var has_change = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] ) == tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) ) ? true : false;
+                        if ( has_change ) {
+                            var change_amount = proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "value" ];
+                        } else {
+                            var change_amount = 0;
+                        }
+                        var to_amount = 0;
+                        proposal[ 2 ].forEach( ( item, index ) => {
+                            if ( has_change && index == proposal[ 2 ].length - 1 ) return;
+                            to_amount = to_amount + item.value;
+                            var div2 = document.createElement( "div" );
+                            div2.innerHTML = `
+                                <p><input class="output_addy proposed_output" disabled><input class="output_amt proposed_amt" disabled></p>
+                            `;
+                            div2.getElementsByClassName( "output_addy" )[ 0 ].value = tapscript.Address.fromScriptPubKey( item.scriptPubKey, mempoolnet );
+                            div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
+                            div.append( div2 );
+                        });
+                        var fee_amount = from_amount - ( to_amount + change_amount );
+                        if ( !fee_amount ) {
+                            var number_of_visible_proposals = 0;
+                            $$( '.proposal_div' ).forEach( item => {
+                                if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                            });
+                            if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
                             return;
                         }
-                        return true;
-                    });
-                    if ( !input_utxo_is_ours ) return;
-                    $( '.none_currently' ).style.display = "none";
-                    var has_change = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] ) == tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) ) ? true : false;
-                    if ( has_change ) {
-                        var change_amount = proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "value" ];
-                    } else {
-                        var change_amount = 0;
+                        var fee = document.createElement( "div" );
+                        fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
+                        //check for low fees and warn if too low
+                        var size_of_each_input = 0;
+                        var temp_multisig = [...multisig];
+                        threshold = temp_multisig[ 0 ];
+                        temp_multisig.splice( 0, 1 );
+                        var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                            size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
+                        }
+                        var txsize = 0;
+                        var i; for ( i=0; i<proposal[ 1 ].length; i++ ) {
+                            txsize = txsize + size_of_each_input;
+                        }
+                        var i; for ( i=0; i<proposal[ 2 ].length; i++ ) {
+                            //I calculate that outputs add 30 bytes apiece by
+                            //assuming the average scriptpubkey is 26 bytes
+                            //and assuming amounts are denoted in 4 bytes
+                            txsize = txsize + 30;
+                        }
+                        var fee_options = await getThreeFeeRates( mempoolNetwork );
+                        var min_fee = fee_options[ 0 ];
+                        min_fee = ( Number( min_fee ) * txsize ) - 30;
+                        //I subtracted 30 because the parent transaction often-but-not-always
+                        //adds an additional change output after calculating the feerate, so
+                        //that makes it too-frequently trigger the fee warning -- also, I am
+                        //overestimating fees anyway due to not understanding how the witness
+                        //discount works so this should be safe
+                        if ( fee_amount < min_fee ) fee.innerHTML += `<p class="fee_warning">Warning, this is a low fee, likely to be rejected by miners. The estimated size of this transaction is ${txsize} bytes and the lowest feerate that most mempools accept right now is ${fee_options[ 0 ]} sat per byte. That means your tx should pay at least ${min_fee} sats as a fee. Be careful what you sign.</p>`;
+                        div.append( fee );
                     }
-                    var to_amount = 0;
-                    proposal[ 2 ].forEach( ( item, index ) => {
-                        if ( has_change && index == proposal[ 2 ].length - 1 ) return;
-                        to_amount = to_amount + item.value;
-                        var div2 = document.createElement( "div" );
-                        div2.innerHTML = `
-                            <p><input class="output_addy proposed_output" disabled><input class="output_amt proposed_amt" disabled></p>
-                        `;
-                        div2.getElementsByClassName( "output_addy" )[ 0 ].value = tapscript.Address.fromScriptPubKey( item.scriptPubKey, mempoolnet );
-                        div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
-                        div.append( div2 );
-                    });
-                    var fee_amount = from_amount - ( to_amount + change_amount );
-                    if ( !fee_amount ) {
-                        var number_of_visible_proposals = 0;
-                        $$( '.proposal_div' ).forEach( item => {
-                            if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
-                        });
-                        if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
-                        return;
-                    }
-                    var fee = document.createElement( "div" );
-                    fee.innerHTML = `<p>Mining fee: ${fee_amount} sats</p>`;
-                    //check for low fees and warn if too low
-                    var size_of_each_input = 0;
-                    var temp_multisig = [...multisig];
-                    threshold = temp_multisig[ 0 ];
-                    temp_multisig.splice( 0, 1 );
-                    var i; for ( i=0; i<temp_multisig.length; i++ ) {
-                        size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
-                    }
-                    var txsize = 0;
-                    var i; for ( i=0; i<proposal[ 1 ].length; i++ ) {
-                        txsize = txsize + size_of_each_input;
-                    }
-                    var i; for ( i=0; i<proposal[ 2 ].length; i++ ) {
-                        //I calculate that outputs add 30 bytes apiece by
-                        //assuming the average scriptpubkey is 26 bytes
-                        //and assuming amounts are denoted in 4 bytes
-                        txsize = txsize + 30;
-                    }
-                    var fee_options = await getThreeFeeRates( mempoolNetwork );
-                    var min_fee = fee_options[ 0 ];
-                    min_fee = ( Number( min_fee ) * txsize ) - 30;
-                    //I subtracted 30 because the parent transaction often-but-not-always
-                    //adds an additional change output after calculating the feerate, so
-                    //that makes it too-frequently trigger the fee warning -- also, I am
-                    //overestimating fees anyway due to not understanding how the witness
-                    //discount works so this should be safe
-                    if ( fee_amount < min_fee ) fee.innerHTML += `<p class="fee_warning">Warning, this is a low fee, likely to be rejected by miners. The estimated size of this transaction is ${txsize} bytes and the lowest feerate that most mempools accept right now is ${fee_options[ 0 ]} sat per byte. That means your tx should pay at least ${min_fee} sats as a fee. Be careful what you sign.</p>`;
-                    div.append( fee );
                     var buttons = document.createElement( "div" );
                     buttons.className = "approve_or_deny";
                     buttons.innerHTML = `<p><button class="approve approve_${event.id}">Approve</button> <button class="deny deny_${event.id}">Deny</button></p>`;
@@ -558,28 +587,32 @@
                     div.getElementsByClassName( "approve" )[ 0 ].onclick = async () => {
                         var inputs = proposal[ 1 ];
                         var outputs = proposal[ 2 ];
-                        var txdata = tapscript.Tx.create({
-                          vin  : inputs,
-                          vout : outputs
-                        });
                         var seckey = sessionStorage[ "myprivkey" ];
                         var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
-                        var temp_multisig = [...multisig];
-                        var threshold = temp_multisig[ 0 ];
-                        temp_multisig.splice( 0, 1 );
-                        var script = [0];
-                        temp_multisig.forEach( item => {
-                            script.push( item, "OP_CHECKSIGADD" );
-                        });
-                        var pubkey = "ab".repeat( 32 );
-                        script.push( threshold, "OP_EQUAL" );
-                        var sbytes = tapscript.Script.encode( script );
-                        var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
-                        var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
-                        var all_sigs = [];
-                        var i; for ( i=0; i<inputs.length; i++ ) {
-                            var sig = tapscript.Signer.taproot.sign(seckey, txdata, i, { extension: tapleaf });
-                            all_sigs.push( sig.hex );
+                        if ( inputs.length && outputs.length ) {
+                            var txdata = tapscript.Tx.create({
+                              vin  : inputs,
+                              vout : outputs
+                            });
+                            var temp_multisig = [...multisig];
+                            var threshold = temp_multisig[ 0 ];
+                            temp_multisig.splice( 0, 1 );
+                            var script = [0];
+                            temp_multisig.forEach( item => {
+                                script.push( item, "OP_CHECKSIGADD" );
+                            });
+                            var pubkey = "ab".repeat( 32 );
+                            script.push( threshold, "OP_EQUAL" );
+                            var sbytes = tapscript.Script.encode( script );
+                            var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                            var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                            var all_sigs = [];
+                            var i; for ( i=0; i<inputs.length; i++ ) {
+                                var sig = tapscript.Signer.taproot.sign(seckey, txdata, i, { extension: tapleaf });
+                                all_sigs.push( sig.hex );
+                            }
+                        } else {
+                            var all_sigs = 1;
                         }
                         var reply = {
                             "content"    : JSON.stringify( all_sigs ),
@@ -607,9 +640,9 @@
                         <div>
                             Approvals: <span class="sigs_obtained">0</span><br>
                             Denials: <span class="denys_obtained">0</span><br>
-                            Approvals needed to send the money: ${threshold}<br>
-                            Denials needed to block approval: ${( $$( '.profile' ).length - threshold ) + 1}<br>
-                            Number of respondants so far: <span class="respondants_num">0</span> out of ${$$( '.profile' ).length}
+                            Votes needed for approval: ${threshold}<br>
+                            <div class="denials_needed">Denials needed for rejection: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
+                            <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
                         </div>
                     `;
                     div.append( sigs_obtained );
@@ -623,6 +656,7 @@
                             item.style.display = "block";
                         });
                     }
+                    $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                     var i; for ( i=0; i<Object.keys( relays ).length; i++) {
                         var myrelay = Object.keys( relays )[ i ];
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
@@ -640,7 +674,7 @@
                     if ( !content ) {
                         if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .approve` ).disabled = true;
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
-                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
+                        $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
                         //make rejected proposals disappear
                         if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
                         $( `.proposal_${proposal}` ).style.display = "none";
@@ -663,37 +697,39 @@
                             return true;
                         });
                         if ( sigs_exist_already ) return;
-                        //validate each signature
-                        //but to do that I need the txdata and tapleaf
-                        //because those give me the scripthash
-                        //and to get the tapleaf I need the script
-                        var script = [0];
-                        temp_multisig.forEach( item => {
-                            script.push( item, "OP_CHECKSIGADD" );
-                        });
-                        var pubkey = "ab".repeat( 32 );
-                        script.push( threshold, "OP_EQUAL" );
-                        var sbytes = tapscript.Script.encode( script );
-                        var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
-                        var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
-                        var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
-                        var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
-                        //now I have the script and tapleaf but I still need the txdata
-                        var txdata = tapscript.Tx.create({
-                          vin  : inputs,
-                          vout : outputs
-                        });
-                        //now I can validate each signature
-                        var all_sigs_are_valid = true;
-                        var i; for ( i=0; i<inputs.length; i++ ) {
-                            var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
-                            var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
-                            if ( !is_valid ) all_sigs_are_valid = false;
+                        if ( content != "1" ) {
+                            //validate each signature
+                            //but to do that I need the txdata and tapleaf
+                            //because those give me the scripthash
+                            //and to get the tapleaf I need the script
+                            var script = [0];
+                            temp_multisig.forEach( item => {
+                                script.push( item, "OP_CHECKSIGADD" );
+                            });
+                            var pubkey = "ab".repeat( 32 );
+                            script.push( threshold, "OP_EQUAL" );
+                            var sbytes = tapscript.Script.encode( script );
+                            var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                            var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                            var inputs = JSON.parse( $( `.proposal_${proposal} .inputs` ).innerText );
+                            var outputs = JSON.parse( $( `.proposal_${proposal} .outputs` ).innerText );
+                            //now I have the script and tapleaf but I still need the txdata
+                            var txdata = tapscript.Tx.create({
+                              vin  : inputs,
+                              vout : outputs
+                            });
+                            //now I can validate each signature
+                            var all_sigs_are_valid = true;
+                            var i; for ( i=0; i<inputs.length; i++ ) {
+                                var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
+                                var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
+                                if ( !is_valid ) all_sigs_are_valid = false;
+                            }
+                            if ( !all_sigs_are_valid ) return;
                         }
-                        if ( !all_sigs_are_valid ) return;
                         sigs[ proposal ][ event.pubkey ] = all_sigs;
                         $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
-                        $( `.proposal_${proposal} .respondants_num` ).innerText = Number( $( `.proposal_${proposal} .respondants_num` ).innerText ) + 1;
+                        $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
                         if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
                         var i; for ( i=0; i<JSON.parse( content ).length; i++ ) {
                             //put sigs in reverse order of multisig keys
@@ -714,19 +750,31 @@
                                 }
                             });
                             temp_multisig.reverse();
-                            txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
+                            if ( txdata ) txdata.vin[ i ].witness = [ ...sigs_array, script, cblock ];
                         }
-                        var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
-                        sessionStorage[ "loop_num" ] = "2";
-                        $$( '.proposal_div' ).forEach( item => {
-                            item.style.display = "none";
+                        if ( txdata ) {
+                            var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
+                            sessionStorage[ "loop_num" ] = "2";
+                        }
+                        // $( `.proposal_${proposal}` ).style.display = "none";
+                        var it_was_only_a_statement = true;
+                        Object.keys( sigs[ proposal ] ).forEach( item => {
+                            if ( sigs[ proposal ][ item ] != 1 ) it_was_only_a_statement = false;
                         });
+                        if ( it_was_only_a_statement ) {
+                            $( '.no_statements' ).style.display = "none";
+                            $( '.statements' ).append( $( `.proposal_${proposal}` ) );
+                        } else {
+                            $( '.no_past_proposals' ).style.display = "none";
+                            $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
+                        }
+                        $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
                         $$( '.proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
                         if ( !number_of_visible_proposals ) $( '.none_currently' ).style.display = "block";
-                        alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
+                        if ( txdata ) alert( `The transaction was approved! You can view it here: https://mempool.space/${mempoolNetwork}tx/${txid}` );
                     }
                 }
             }
@@ -754,97 +802,101 @@
                 return event;
             }
             var spendCoins = async () => {
-                var temp_multisig = [...multisig];
-                var threshold = temp_multisig[ 0 ];
-                temp_multisig.splice( 0, 1 );
-                var script = [0];
-                temp_multisig.forEach( item => {
-                    script.push( item, "OP_CHECKSIGADD" );
-                });
-                var pubkey = "ab".repeat( 32 );
-                script.push( threshold, "OP_EQUAL" );
-                var sbytes = tapscript.Script.encode( script );
-                var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
-                var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
-                var utxos = JSON.parse( sessionStorage[ "utxos" ] );
                 var inputs = [];
-                var from_amount = 0;
-                utxos.forEach( utxo => {
-                    from_amount = from_amount + utxo[ 2 ];
-                    var txid = utxo[ 0 ];
-                    var vout = utxo[ 1 ];
-                    var amt = utxo[ 2 ];
-                    inputs.push({
-                        txid: txid,
-                        vout: vout,
-                        prevout: {
-                            value: amt,
-                            scriptPubKey: [ 'OP_1', tpubkey ]
-                        },
-                    });
-                });
-                if ( !from_amount ) {
-                    alert( "You cannot spend without money. Please make a deposit, then try again." );
-                    return;
-                }
-                var to_amount = 0;
                 var outputs = [];
-                var there_be_dust = false;
-                $$( '.add_outputs .output_addy' ).forEach( (item, index) => {
-                    outputs.push({
-                        value: Number( $$( '.add_outputs .output_amt' )[ index ].value ),
-                        scriptPubKey: tapscript.Address.toScriptPubKey( item.value )
+                if ( $( '.will_spend' ).checked ) {
+                    var temp_multisig = [...multisig];
+                    var threshold = temp_multisig[ 0 ];
+                    temp_multisig.splice( 0, 1 );
+                    var script = [0];
+                    temp_multisig.forEach( item => {
+                        script.push( item, "OP_CHECKSIGADD" );
                     });
-                    to_amount = to_amount + Number( $$( '.add_outputs .output_amt' )[ index ].value );
-                    if ( Number( $$( '.add_outputs .output_amt' )[ index ].value ) < 546 ) there_be_dust = true;
-                });
-                if ( there_be_dust ) {
-                    alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
-                    return;
-                }
-                if ( from_amount - to_amount == 0 ) {
-                    alert( "You must leave enough to pay a mining fee, please try again" );
-                    return;
-                }
-                var size_of_each_input = 0;
-                var i; for ( i=0; i<temp_multisig.length; i++ ) {
-                    size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
-                }
-                var txsize = 0;
-                var i; for ( i=0; i<inputs.length; i++ ) {
-                    txsize = txsize + size_of_each_input;
-                }
-                var i; for ( i=0; i<outputs.length; i++ ) {
-                    //I calculate that outputs add 30 bytes apiece by
-                    //assuming the average scriptpubkey is 26 bytes
-                    //and assuming amounts are denoted in 4 bytes
-                    txsize = txsize + 30;
-                }
-                var fee_options = await getThreeFeeRates( mempoolNetwork );
-                var sats_per_byte = prompt( `Please enter a fee rate as a number. Specifically, the number of sats per byte you want to pay. The minimum rate is ${fee_options[ 0 ]}, the average rate is ${fee_options[ 1 ]}, and the urgent rate is ${fee_options[ 2 ]}.` );
-                sats_per_byte = Number( sats_per_byte );
-                if ( !sats_per_byte ) {
-                    alert( "You entered an invalid fee rate. You must enter a number greater than 0, such as 5, 10, or 25. Please try again." );
-                    return;
-                }
-                var mining_fee = txsize * sats_per_byte;
-                if ( from_amount - to_amount < mining_fee ) {
-                    alert( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
-                    return;
-                }
-                if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
-                    outputs.push({
-                        value: from_amount - ( to_amount + mining_fee ),
-                        scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
+                    var pubkey = "ab".repeat( 32 );
+                    script.push( threshold, "OP_EQUAL" );
+                    var sbytes = tapscript.Script.encode( script );
+                    var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
+                    var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
+                    var utxos = JSON.parse( sessionStorage[ "utxos" ] );
+                    var from_amount = 0;
+                    utxos.forEach( utxo => {
+                        from_amount = from_amount + utxo[ 2 ];
+                        var txid = utxo[ 0 ];
+                        var vout = utxo[ 1 ];
+                        var amt = utxo[ 2 ];
+                        inputs.push({
+                            txid: txid,
+                            vout: vout,
+                            prevout: {
+                                value: amt,
+                                scriptPubKey: [ 'OP_1', tpubkey ]
+                            },
+                        });
                     });
+                    if ( !from_amount ) {
+                        alert( "You cannot spend without money. Please make a deposit, then try again." );
+                        return;
+                    }
+                    var to_amount = 0;
+                    var there_be_dust = false;
+                    $$( '.add_outputs .output_addy' ).forEach( (item, index) => {
+                        outputs.push({
+                            value: Number( $$( '.add_outputs .output_amt' )[ index ].value ),
+                            scriptPubKey: tapscript.Address.toScriptPubKey( item.value )
+                        });
+                        to_amount = to_amount + Number( $$( '.add_outputs .output_amt' )[ index ].value );
+                        if ( Number( $$( '.add_outputs .output_amt' )[ index ].value ) < 546 ) there_be_dust = true;
+                    });
+                    if ( there_be_dust ) {
+                        alert( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
+                        return;
+                    }
+                    if ( from_amount - to_amount == 0 ) {
+                        alert( "You must leave enough to pay a mining fee, please try again" );
+                        return;
+                    }
+                    var size_of_each_input = 0;
+                    var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                        size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
+                    }
+                    var txsize = 0;
+                    var i; for ( i=0; i<inputs.length; i++ ) {
+                        txsize = txsize + size_of_each_input;
+                    }
+                    var i; for ( i=0; i<outputs.length; i++ ) {
+                        //I calculate that outputs add 30 bytes apiece by
+                        //assuming the average scriptpubkey is 26 bytes
+                        //and assuming amounts are denoted in 4 bytes
+                        txsize = txsize + 30;
+                    }
+                    var fee_options = await getThreeFeeRates( mempoolNetwork );
+                    var sats_per_byte = prompt( `Please enter a fee rate as a number. Specifically, the number of sats per byte you want to pay. The minimum rate is ${fee_options[ 0 ]}, the average rate is ${fee_options[ 1 ]}, and the urgent rate is ${fee_options[ 2 ]}.` );
+                    sats_per_byte = Number( sats_per_byte );
+                    if ( !sats_per_byte ) {
+                        alert( "You entered an invalid fee rate. You must enter a number greater than 0, such as 5, 10, or 25. Please try again." );
+                        return;
+                    }
+                    var mining_fee = txsize * sats_per_byte;
+                    if ( from_amount - to_amount < mining_fee ) {
+                        alert( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
+                        return;
+                    }
+                    if ( from_amount - ( to_amount + mining_fee ) >= 546 ) {
+                        outputs.push({
+                            value: from_amount - ( to_amount + mining_fee ),
+                            scriptPubKey: tapscript.Address.toScriptPubKey( $( '.addy' ).innerText )
+                        });
+                    }
+                    // var txdata = tapscript.Tx.create({
+                    //   vin  : inputs,
+                    //   vout : outputs
+                    // });
                 }
-                var txdata = tapscript.Tx.create({
-                  vin  : inputs,
-                  vout : outputs
-                });
                 var seckey = sessionStorage[ "myprivkey" ];
                 var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
-                var proposal = JSON.stringify( [$( '.proposal_desc' ).value, inputs, outputs] );
+                var proposal = [$( '.proposal_desc' ).value, inputs, outputs];
+                if ( $( '.statement' ).value ) proposal.push( $( '.statement' ).value );
+                proposal = JSON.stringify( proposal );
                 var event = {
                     "content"    : proposal,
                     "created_at" : Math.floor( Date.now() / 1000 ),
