@@ -225,11 +225,19 @@
                 'wss://relay.honk.pw': null,
                 // 'wss://zee-relay.fly.dev': null
             }
+            var bad_relays = {
+                'wss://relay.damus.io': 0,
+                'wss://relay.honk.pw/': 0,
+                'wss://nostr.randomdevelopment.biz': 0,
+                'wss://relay.honk.pw': 0,
+                // 'wss://zee-relay.fly.dev': 0
+            }
             sessionStorage[ "utxos" ] = "[]";
             var getting_info_for = [];
             var threshold = null;
             var dont_broadcast = [];
             var sigs = {}
+            var denys = {}
             var sha256  = bitcoinjs.crypto.sha256;
             var { getSharedSecret, schnorr, utils } = nobleSecp256k1;
             var bytesToHex = ( bytes ) => {return bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );}
@@ -559,6 +567,8 @@
                             div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
                             div.append( div2 );
                         });
+                        //todo: fix the error whereby these next few lines prevent some
+                        //past proposals from showing up in the past proposals section
                         var fee_amount = from_amount - ( to_amount + change_amount );
                         if ( fee_amount < 1 ) {
                             var number_of_visible_proposals = 0;
@@ -719,7 +729,22 @@
                     temp_multisig.splice( 0, 1 );
                     var proposal = event.tags[ 0 ][ 1 ];
                     if ( !content ) {
-                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .approve` ).disabled = true;
+                        if ( proposal in denys && Object.keys( denys[ proposal ] ).length > ( $$( '.profile' ).length - threshold ) + 1 ) return;
+                        if ( !( proposal in denys ) ) denys[ proposal ] = {};
+                        var deny_exists_already = false;
+                        Object.keys( denys[ proposal ] ).every( item => {
+                            if ( item == event.pubkey ) {
+                                deny_exists_already = true;
+                                return;
+                            }
+                            return true;
+                        });
+                        if ( deny_exists_already ) return;
+                        denys[ proposal ][ event.pubkey ] = 1;
+                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) {
+                            $( `.proposal_${proposal} .approve` ).disabled = true;
+                            $( `.proposal_${proposal} .deny` ).disabled = true;
+                        }
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
                         $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
                         //make rejected proposals disappear
@@ -730,13 +755,16 @@
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
                         });
                         if ( !number_of_visible_proposals ) {
-                            // $( '.cprops' ).innerText = 0;
+                            $( '.cprops' ).innerText = 0;
                             $( '.none_currently' ).style.display = "block";
                         }
                     } else {
                         if ( proposal in sigs && Object.keys( sigs[ proposal ] ).length >= threshold ) return;
                         if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
-                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) $( `.proposal_${proposal} .deny` ).disabled = true;
+                        if ( event.pubkey == sessionStorage[ "mypubkey" ] ) {
+                            $( `.proposal_${proposal} .deny` ).disabled = true;
+                            $( `.proposal_${proposal} .approve` ).disabled = true;
+                        }
                         all_sigs = JSON.parse( content );
                         var sigs_exist_already = false;
                         Object.keys( sigs[ proposal ] ).every( item => {
@@ -1217,6 +1245,15 @@
                 Object.keys( sigs ).forEach( item => {
                     Object.keys( sigs[ item ] ).forEach( item2 => {
                         if ( item2 == sessionStorage[ "mypubkey" ] ) {
+                            $( `.proposal_${item} .approve` ).disabled = true;
+                            $( `.proposal_${item} .deny` ).disabled = true;
+                        }
+                    });
+                });
+                Object.keys( denys ).forEach( item => {
+                    Object.keys( denys[ item ] ).forEach( item2 => {
+                        if ( item2 == sessionStorage[ "mypubkey" ] ) {
+                            $( `.proposal_${item} .approve` ).disabled = true;
                             $( `.proposal_${item} .deny` ).disabled = true;
                         }
                     });
@@ -1233,6 +1270,10 @@
                 $( ".modal" ).style.display = "block";
             }
             var fixReadyState = async relay => {
+                if ( bad_relays[ relay ] > 9 ) {
+                    delete relays[ relay ];
+                    return;
+                }
                 var relay_is_good = !!relays[ relay ] && relays[ relay ].readyState == 1;
                 if ( !!relays[ relay ] ) {
                     // console.log( "good so far" );
@@ -1254,6 +1295,7 @@
                 }
                 await waitSomeSeconds( 1 );
                 console.log( "fixing this relay:", relay );
+                bad_relays[ relay ] = bad_relays[ relay ] + 1;
                 // console.log( "relay is good, right?", relay_is_good, "I mean there is a websocket there, right?", !!relays[ relay ], "and it has a connection right?", relays[ relay ].readyState );
                 return fixReadyState( relay );
             }
@@ -1336,8 +1378,8 @@
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
                             await fixReadyState( myrelay );
-                            relays[ myrelay ].addEventListener( "message", handleMessage );
-                            relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
+                            if ( relays[ myrelay ] ) relays[ myrelay ].addEventListener( "message", handleMessage );
+                            if ( relays[ myrelay ] ) relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                         }
                         showModal( `Success, your multisig is created and can be viewed and managed here:\n\n${url}` );
                     }
@@ -1372,6 +1414,11 @@
                     $$( '.bitpac_balance' )[ 1 ].innerText = usd_balance;
                     $( '.bitpac_balance_sats' ).innerText = full_balance;
                     $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
+                } else if ( num < 1 ) {
+                    num = 10;
+                    Object.keys( relays ).forEach( item => {
+                        fixReadyState( item );
+                    });
                 }
                 num = num - 1;
                 sessionStorage[ "loop_num" ] = String( num );
