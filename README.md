@@ -44,6 +44,7 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [ ] Improve the user interface
 - [ ] Let keyholders transfer or sell their voting rights
 - [ ] Let bitpac members propose and vote on text statements, e.g. manifestos, besides monetary proposals
+- [ ] Add a menu: [Members] [Balance] [Statements] [Current proposals 0] [Past proposals 5] [Other bitpacs]
 - [ ] Learn why I sometimes need to reload the page and fix it so I don't
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
