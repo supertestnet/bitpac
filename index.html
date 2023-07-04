@@ -1274,8 +1274,10 @@
             var fixReadyState = async relay => {
                 if ( bad_relays[ relay ] > 9 ) {
                     delete relays[ relay ];
-                    setTimeout( function() {relays[ relay ] = null;}, 30000 );
-                    bad_relays[ relay ] = 0;
+                    setTimeout( function() {
+                        relays[ relay ] = null;
+                        bad_relays[ relay ] = 0;
+                    }, 30000 );
                     return;
                 }
                 var relay_is_good = !!relays[ relay ] && relays[ relay ].readyState == 1;
