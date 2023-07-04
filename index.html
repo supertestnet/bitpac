@@ -320,9 +320,10 @@
                 sessionStorage[ "npub" ] = npub;
                 var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                     var myrelay = Object.keys( relays )[ i ];
+                    await waitForOneRelay( true );
                     if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                     var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
-                    var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ] }
+                    var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ], limit: 1 }
                     var subscription = [ "REQ", subId, filter ];
                     relays[ myrelay ].addEventListener( "message", handleMessage );
                     relays[ myrelay ].send( JSON.stringify( subscription ) );
