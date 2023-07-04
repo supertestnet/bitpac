@@ -434,7 +434,7 @@
                         </div>
                         <div class="statements">
                             <h2>Statements</h2>
-                            <p class="no_statements">None yet</p>
+                            <p class="no_statements">Loading<span class="dots">.</span></p>
                         </div>
                         <div class="current_proposals">
                             <h2>Current proposals</h2>
@@ -442,7 +442,7 @@
                         </div>
                         <div class="past_proposals">
                             <h2>Past proposals</h2>
-                            <p class="no_past_proposals">None yet</p>
+                            <p class="no_past_proposals">Loading<span class="dots">.</span></p>
                         </div>
                         <div class="crafter">
                             <h2>Craft a proposal</h2>
@@ -720,6 +720,8 @@
                     `;
                     div.append( sigs_obtained );
                     $( '.current_proposals' ).append( div );
+                    $( '.no_statements' ).innerText = "None yet";
+                    $( '.no_past_proposals' ).innerText = "None yet";
                     if ( sessionStorage[ "myprivkey" ] ) {
                         $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                             item.style.display = "block";
