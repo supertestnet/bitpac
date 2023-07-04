@@ -562,7 +562,8 @@
                     if ( proposal[ 1 ].length && proposal[ 2 ].length ) {
                         var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
                         //ensure the input(s) exist in our utxo set
-                        var input_utxo_is_ours = false;
+                        //otherwise this proposal should go into past proposals
+                        var input_utxos_are_ours = true;
                         var utxos = JSON.parse( sessionStorage[ "utxos" ] );
                         var stringified_utxos = [];
                         utxos.forEach( item => {
@@ -573,14 +574,16 @@
                             var vout = item[ "vout" ];
                             var amt = item[ "prevout" ][ "value" ];
                             var stringified_input = JSON.stringify( [txid, vout, amt] );
-                            if ( stringified_utxos.includes( stringified_input ) ) {
-                                input_utxo_is_ours = true;
+                            if ( !stringified_utxos.includes( stringified_input ) ) {
+                                input_utxos_are_ours = false;
                                 return;
                             }
                             return true;
                         });
-                        div.setAttribute( "data-input_utxo_does_not_exist", "true" );
-                        dont_broadcast.push( event.id );
+                        if ( !input_utxos_are_ours ) {
+                            var proposal_should_go_in_past_proposals = true;
+                            dont_broadcast.push( event.id );
+                        }
                         $( '.none_currently' ).style.display = "none";
                         var has_change = tapscript.Address.fromScriptPubKey( proposal[ 2 ][ proposal[ 2 ].length - 1 ][ "scriptPubKey" ] ) == tapscript.Address.fromScriptPubKey( tapscript.Address.toScriptPubKey( $( '.addy' ).innerText ) ) ? true : false;
                         if ( has_change ) {
@@ -742,7 +745,14 @@
                         <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
                     `;
                     div.append( sigs_obtained );
-                    $( '.current_proposals' ).append( div );
+                    if ( !proposal_should_go_in_past_proposals ) {
+                        $( '.current_proposals' ).append( div );
+                    } else {
+                        $( '.no_past_proposals' ).style.display = "none";
+                        div.getElementsByClassName( "approve_or_deny" )[ 0 ].style.display = "none";
+                        div.getElementsByClassName( "fee_parent" )[ 0 ].innerHTML = ``;
+                        $( '.past_proposals' ).append( div );
+                    }
                     if ( sessionStorage[ "myprivkey" ] ) {
                         $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                             item.style.display = "block";
@@ -790,6 +800,7 @@
                         //make rejected proposals disappear
                         $( '.no_past_proposals' ).style.display = "none";
                         $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
+                        $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                         $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
@@ -898,11 +909,14 @@
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
                             var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
+                            $( '.no_past_proposals' ).style.display = "none";
+                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                             $( '.past_proposals' ).append( second_statement );
                         } else {
                             $( '.no_past_proposals' ).style.display = "none";
+                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                             $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
-                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank" data-txhex="${tapscript.Tx.encode( txdata ).hex}" onclick='pushBTCpmt( this.getAttribute( "data-txhex" ), "${mempoolNetwork}" )'>View this transaction, which was approved</a></p>`;
+                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank" data-txhex="${tapscript.Tx.encode( txdata ).hex}" onclick='pushBTCpmt( this.getAttribute( "data-txhex" ), "${mempoolNetwork}" )'>View this transaction</a></p>`;
                         }
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
