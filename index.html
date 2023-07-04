@@ -476,12 +476,14 @@
                     }
                     $( '.menu_statements' ).onclick = () => {
                         showPage( "statements" );
+                        if ( $( '.statements .proposal_div' ) ) $( '.no_statements' ).style.display = "none"; else $( '.no_statements' ).style.display = "block";
                     }
                     $( '.menu_cprops' ).onclick = () => {
                         showPage( "current_proposals" );
                     }
                     $( '.menu_pprops' ).onclick = () => {
                         showPage( "past_proposals" );
+                        if ( $( '.past_proposals .proposal_div' ) ) $( '.no_past_proposals' ).style.display = "none"; else $( '.no_past_proposals' ).style.display = "block";
                     }
                     $( '.menu_login_or_create' ).onclick = () => {
                         showPage( "login_form" );
@@ -515,7 +517,6 @@
                     if ( known_proposals.includes( event.id ) ) return;
                     known_proposals.push( event.id );
                     await waitForBalanceToLoad();
-                    console.log( `nothing equivalent to proposal_${event.id} exists!` );
                     var proposal = JSON.parse( content );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
@@ -572,10 +573,20 @@
                             div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
                             div.append( div2 );
                         });
-                        //todo: fix the error whereby these next few lines prevent some
-                        //past proposals from showing up in the past proposals section
+                        try {
+                            var txdata = tapscript.Tx.create({
+                              vin  : proposal[ 1 ],
+                              vout : proposal[ 2 ]
+                            });
+                            var txid = tapscript.Tx.util.getTxid( txdata );
+                            console.log( "txid:", txid );
+                            var tx_exists = await checkIfTxExists( txid );
+                            if ( tx_exists ) var proposal_should_go_in_past_proposals = true;
+                        } catch( e ) {
+                            console.log( "oh no!", e );
+                        }
                         var fee_amount = from_amount - ( to_amount + change_amount );
-                        if ( fee_amount < 1 ) {
+                        if ( fee_amount < 1 && !proposal_should_go_in_past_proposals ) {
                             var number_of_visible_proposals = 0;
                             $$( '.current_proposals .proposal_div' ).forEach( item => {
                                 if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
@@ -752,9 +763,11 @@
                         }
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
                         $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
-                        //make rejected proposals disappear
                         if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
-                        $( `.proposal_${proposal}` ).style.display = "none";
+                        //make rejected proposals disappear
+                        $( '.no_past_proposals' ).style.display = "none";
+                        $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
+                        $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
                         $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
@@ -854,7 +867,6 @@
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
                             var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
-                            $( '.no_past_proposals' ).style.display = "none";
                             $( '.past_proposals' ).append( second_statement );
                         } else {
                             $( '.no_past_proposals' ).style.display = "none";
@@ -1327,6 +1339,10 @@
                 if ( !relay_is_ready ) {
                     return waitForOneRelay();
                 }
+            }
+            var checkIfTxExists = async txid => {
+                var data = await getData( `https://mempool.space/${mempoolNetwork}api/tx/${txid}` );
+                if ( data != "Transaction not found" ) return true;
             }
         </script>
     </head>
