@@ -58,9 +58,13 @@
             .proposal_div {
                 margin-bottom: 1rem;
             }
+            .fee_parent p {
+                margin-bottom: 0px;
+            }
             .proposed_output, .proposed_amt {
                 width: calc( 50% - .5rem );
                 background-color: #bbbbbb;
+                margin-bottom: 0px;
             }
             .plus_button, .minus_button, .output_plus_button {
                 display: inline-block;
@@ -133,6 +137,9 @@
             }
             .statements .denials_needed, .statements .num_of_respondents {
                 display: none;
+            }
+            .computed_proposal_info {
+                margin-top: 1rem;
             }
             .black-bg {
                 display: none;
@@ -550,7 +557,6 @@
                     div.getElementsByClassName( "proposal_name" )[ 0 ].innerText = proposal[ 0 ];
                     if ( proposal[ 3 ] ) {
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
-                        div.getElementsByClassName( "proposal_statement" )[ 0 ].innerHTML += "<br><br>";
                     }
                     if ( !proposal[ 1 ].length && !proposal[ 3 ] ) return;
                     if ( proposal[ 1 ].length && proposal[ 2 ].length ) {
@@ -727,14 +733,13 @@
                         // window.location.reload();
                     }
                     var sigs_obtained = document.createElement( "div" );
+                    sigs_obtained.className = "computed_proposal_info";
                     sigs_obtained.innerHTML = `
-                        <div>
-                            Approvals: <span class="sigs_obtained">0</span><br>
-                            Denials: <span class="denys_obtained">0</span><br>
-                            Approvals needed to pass: ${threshold}<br>
-                            <div class="denials_needed">Denials needed to fail: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
-                            <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
-                        </div>
+                        Approvals: <span class="sigs_obtained">0</span><br>
+                        Denials: <span class="denys_obtained">0</span><br>
+                        Approvals needed to pass: ${threshold}<br>
+                        <div class="denials_needed">Denials needed to fail: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
+                        <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
                     `;
                     div.append( sigs_obtained );
                     $( '.current_proposals' ).append( div );
