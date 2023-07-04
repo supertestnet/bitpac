@@ -762,6 +762,7 @@
                         });
                     }
                     $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
+                    $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
                         if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
