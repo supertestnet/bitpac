@@ -320,6 +320,7 @@
                 sessionStorage[ "npub" ] = npub;
                 var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                     var myrelay = Object.keys( relays )[ i ];
+                    if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                     var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                     var filter = { "kinds": [ 0 ], "authors": [ pubkeyFromNpub( npub ) ] }
                     var subscription = [ "REQ", subId, filter ];
@@ -494,8 +495,10 @@
                     }
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
+                        await waitForOneRelay( true );
+                        if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
-                        var filter = { authors: temp_multisig, kinds: [ 0 ] }
+                        var filter = { authors: temp_multisig, kinds: [ 0 ], limit: 1 }
                         var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
                         var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ], since: one_month_ago }
                         var subscription = [ "REQ", subId, filter, filter2 ];
@@ -634,6 +637,7 @@
                         var signedEvent = await getSignedEvent(reply, seckey);
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
+                            if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                             relays[ myrelay ].addEventListener( "message", handleMessage );
                             relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                             await waitSomeSeconds( 2 );
@@ -682,6 +686,7 @@
                         var signedEvent = await getSignedEvent(reply, seckey);
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
+                            if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                             relays[ myrelay ].addEventListener( "message", handleMessage );
                             relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                         }
@@ -711,6 +716,7 @@
                     $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
+                        if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter = { authors: temp_multisig, kinds: [ 2860 ], "#e": [ event.id ] }
                         var subscription = [ "REQ", subId, filter ];
@@ -989,6 +995,7 @@
                 var signedEvent = await getSignedEvent(event, seckey);
                 var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                     var myrelay = Object.keys( relays )[ i ];
+                    if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                     relays[ myrelay ].addEventListener( "message", handleMessage );
                     relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                 }
@@ -1277,7 +1284,7 @@
                     } else {
                         relays[ relay ] = new WebSocket( relay );
                         await waitSomeSeconds( 1 );
-                        if ( relays[ relay ].readyState == 1 ) {
+                        if ( relays[ relay ] && relays[ relay ].readyState == 1 ) {
                             return true;
                         }
                     }
@@ -1293,6 +1300,25 @@
                 if ( !isNaN( $( '.bitpac_balance_sats' ).innerText ) ) return;
                 await waitSomeSeconds( 1 );
                 return waitForBalanceToLoad();
+            }
+            var waitForOneRelay = async ( waiting_for_damus ) => {
+                await waitSomeSeconds( 1 );
+                if ( waiting_for_damus && relays[ "wss://relay.damus.io" ] && relays[ "wss://relay.damus.io" ].readyState == 1 ) {
+                    return;
+                } else if ( waiting_for_damus ) {
+                    return waitForOneRelay( true );
+                }
+                var relay_is_ready = false;
+                Object.keys( relays ).every( item => {
+                    if ( relays[ item ] && relays[ item ].readyState == 1 ) {
+                        relay_is_ready = true;
+                        return;
+                    }
+                    return true;
+                });
+                if ( !relay_is_ready ) {
+                    return waitForOneRelay();
+                }
             }
         </script>
     </head>
@@ -1367,6 +1393,7 @@
                         var url = window.location.href + divider + "multisig=" + note_id;
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
+                            if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                             relays[ myrelay ].addEventListener( "message", handleMessage );
                             relays[ myrelay ].send(JSON.stringify([ "EVENT", signedEvent ]));
                         }
@@ -1377,6 +1404,8 @@
                     $( '.multisig_viewer' ).style.display = "block";
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
+                        await waitForOneRelay();
+                        if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                         relays[ myrelay ].addEventListener( "message", handleMessage );
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter  = { "ids": [ $_GET[ "multisig"] ] }
