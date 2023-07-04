@@ -536,6 +536,8 @@
                     if ( known_proposals.includes( event.id ) ) return;
                     known_proposals.push( event.id );
                     await waitForBalanceToLoad();
+                    $( '.no_statements' ).innerText = "None yet";
+                    $( '.no_past_proposals' ).innerText = "None yet";
                     var proposal = JSON.parse( content );
                     var html = `
                         <p class="proposal_name" style="font-weight: bold;"></p>
@@ -736,8 +738,6 @@
                     `;
                     div.append( sigs_obtained );
                     $( '.current_proposals' ).append( div );
-                    $( '.no_statements' ).innerText = "None yet";
-                    $( '.no_past_proposals' ).innerText = "None yet";
                     if ( sessionStorage[ "myprivkey" ] ) {
                         $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                             item.style.display = "block";
