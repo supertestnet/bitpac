@@ -579,12 +579,9 @@
                               vout : proposal[ 2 ]
                             });
                             var txid = tapscript.Tx.util.getTxid( txdata );
-                            console.log( "txid:", txid );
                             var tx_exists = await checkIfTxExists( txid );
                             if ( tx_exists ) var proposal_should_go_in_past_proposals = true;
-                        } catch( e ) {
-                            console.log( "oh no!", e );
-                        }
+                        } catch( e ) {}
                         var fee_amount = from_amount - ( to_amount + change_amount );
                         if ( fee_amount < 1 && !proposal_should_go_in_past_proposals ) {
                             var number_of_visible_proposals = 0;
