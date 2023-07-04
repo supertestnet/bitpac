@@ -475,17 +475,36 @@
                         showPage( "balance" );
                     }
                     $( '.menu_statements' ).onclick = () => {
-                        showPage( "statements" );
                         if ( $( '.statements .proposal_div' ) ) $( '.no_statements' ).style.display = "none"; else $( '.no_statements' ).style.display = "block";
+                        showPage( "statements" );
                     }
                     $( '.menu_cprops' ).onclick = () => {
+                        if ( $( '.current_proposals .proposal_div' ) ) $( '.none_currently' ).style.display = "none"; else $( '.none_currently' ).style.display = "block";
                         showPage( "current_proposals" );
                     }
                     $( '.menu_pprops' ).onclick = () => {
-                        showPage( "past_proposals" );
                         if ( $( '.past_proposals .proposal_div' ) ) $( '.no_past_proposals' ).style.display = "none"; else $( '.no_past_proposals' ).style.display = "block";
+                        showPage( "past_proposals" );
                     }
                     $( '.menu_login_or_create' ).onclick = () => {
+                        if ( $( '.proposal_desc' ) ) {
+                            $( '.proposal_desc' ).value = "";
+                            $( '.statement' ).value = "";
+                            $$( '.add_outputs .output_addy' ).forEach( item => {
+                                item.value = "";
+                            });
+                            $$( '.add_outputs .output_amt' ).forEach( item => {
+                                item.value = "";
+                            });
+                            $$( '.add_outputs .minus_button' ).forEach( (item, index) => {
+                                if ( index != $$( '.add_outputs .minus_button' ).length - 1 ) {
+                                    setTimeout( function() {
+                                        item.click();
+                                    }, index );
+                                }
+                            });
+                            if ( $( '.will_spend' ).checked ) $( '.will_spend_parent' ).click();
+                        }
                         showPage( "login_form" );
                     }
                     $( '.craft_proposal' ).onclick = spendCoins;
@@ -710,8 +729,8 @@
                         <div>
                             Approvals: <span class="sigs_obtained">0</span><br>
                             Denials: <span class="denys_obtained">0</span><br>
-                            Votes needed for approval: ${threshold}<br>
-                            <div class="denials_needed">Denials needed for rejection: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
+                            Approvals needed to pass: ${threshold}<br>
+                            <div class="denials_needed">Denials needed to fail: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
                             <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
                         </div>
                     `;
@@ -765,8 +784,10 @@
                         if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
                         //make rejected proposals disappear
                         $( '.no_past_proposals' ).style.display = "none";
+                        $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
                         $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
+                        $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
                         $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
@@ -783,6 +804,9 @@
                             $( `.proposal_${proposal} .approve` ).disabled = true;
                         }
                         all_sigs = JSON.parse( content );
+                        //todo: fix the issue whereby these lines sometimes result in
+                        //a proposal seeming to be approved multiple times by the same
+                        //person
                         var sigs_exist_already = false;
                         Object.keys( sigs[ proposal ] ).every( item => {
                             if ( item == event.pubkey ) {
@@ -852,16 +876,19 @@
                             sessionStorage[ "loop_num" ] = "2";
                         } else if ( txdata ) {
                             var txid = tapscript.Tx.util.getTxid( txdata );
-                            $( `.proposal_${proposal}` ).setAttribute( "txhex", tapscript.Tx.encode( txdata ).hex );
-                            var rand = ( Math.floor( Math.random() * 12000 ) );
-                            setTimeout( function() {pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );}, Number( rand ) + 3000 );
+                            var tx_exists = await checkIfTxHappened( txid );
+                            if ( !tx_exists ) {
+                                var rand = Math.floor( Math.random() * 3000 );
+                                setTimeout( function() {
+                                    pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
+                                }, Number( rand ) + 1000 );
+                            }
                         }
-                        // $( `.proposal_${proposal}` ).style.display = "none";
                         var it_was_only_a_statement = true;
                         Object.keys( sigs[ proposal ] ).forEach( item => {
                             if ( sigs[ proposal ][ item ] != 1 ) it_was_only_a_statement = false;
                         });
-                        $( `.proposal_${proposal}` ).getElementsByClassName( "approve_or_deny" )[ 0 ].style.display = "none";
+                        $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
                         if ( it_was_only_a_statement ) {
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
@@ -870,9 +897,10 @@
                         } else {
                             $( '.no_past_proposals' ).style.display = "none";
                             $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
-                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank">View this transaction, which was approved</a></p>`;
+                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank" data-txhex="${tapscript.Tx.encode( txdata ).hex}" onclick='pushBTCpmt( this.getAttribute( "data-txhex" ), "${mempoolNetwork}" )'>View this transaction, which was approved</a></p>`;
                         }
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
+                        $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
                         $$( '.current_proposals .proposal_div' ).forEach( item => {
                             if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
@@ -958,10 +986,11 @@
                         showModal( "You cannot send less than 546 sats because that is bitcoin's dust limit. Please try again" );
                         return;
                     }
-                    if ( from_amount - to_amount == 0 ) {
+                    if ( from_amount - to_amount < 1 ) {
                         showModal( "You must leave enough to pay a mining fee, please try again" );
                         return;
                     }
+                    console.log( "from amount:", from_amount, "to amount:", to_amount );
                     var size_of_each_input = 0;
                     var i; for ( i=0; i<temp_multisig.length; i++ ) {
                         size_of_each_input = size_of_each_input + ( 64 + 32 + 8 );
