@@ -1439,6 +1439,9 @@
                     $$( '.bitpac_balance' )[ 1 ].innerText = usd_balance;
                     $( '.bitpac_balance_sats' ).innerText = full_balance;
                     $$( '.bitpac_balance_sats' )[ 1 ].innerText = full_balance;
+                    Object.keys( relays ).forEach( item => {
+                        fixReadyState( item );
+                    });
                 } else if ( num < 1 ) {
                     num = 10;
                     Object.keys( relays ).forEach( item => {
