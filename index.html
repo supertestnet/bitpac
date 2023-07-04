@@ -465,6 +465,7 @@
                     `;
                     var div = document.createElement( "div" );
                     div.innerHTML = html;
+                    $( '.loading' ).remove();
                     $( '.multisig_viewer' ).append( div );
                     $( '.menu_members' ).onclick = () => {
                         showPage( "members" );
@@ -1286,6 +1287,7 @@
                     if ( relays[ relay ].readyState == 1 ) {
                         return true;
                     } else {
+                        relays[ relay ].close();
                         relays[ relay ] = new WebSocket( relay );
                         await waitSomeSeconds( 1 );
                         if ( relays[ relay ] && relays[ relay ].readyState == 1 ) {
@@ -1343,7 +1345,9 @@
             <div class="nostr_profiles"></div>
             <button class="create_bitpac">Submit</button>
         </div>
-        <div class="multisig_viewer"></div>
+        <div class="multisig_viewer">
+            <div class="loading">Loading<span class="dots">.</span></div>
+        </div>
         <script>
             var init = async () => {
                 dotLoop( "." );
