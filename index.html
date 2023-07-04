@@ -970,6 +970,7 @@
                         return;
                     }
                     var mining_fee = txsize * sats_per_byte;
+                    if ( mining_fee < 172 ) mining_fee = 172;
                     if ( from_amount - to_amount < mining_fee ) {
                         showModal( `With your chosen fee rate you must leave at least ${mining_fee} sats to pay for mining fees, which means the max you can spend is ${from_amount - mining_fee} sats. Please try again` );
                         return;
