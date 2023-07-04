@@ -188,6 +188,9 @@
                 .menu .menu_items .menu_internal div {
                     display: block;
                 }
+                .proposed_output {
+                    margin-bottom: 1rem;
+                }
             }
         </style>
         <script>
@@ -750,7 +753,7 @@
                     } else {
                         $( '.no_past_proposals' ).style.display = "none";
                         div.getElementsByClassName( "approve_or_deny" )[ 0 ].style.display = "none";
-                        div.getElementsByClassName( "fee_parent" )[ 0 ].innerHTML = ``;
+                        if ( div.getElementsByClassName( "fee_parent" )[ 0 ] ) div.getElementsByClassName( "fee_parent" )[ 0 ].innerHTML = ``;
                         $( '.past_proposals' ).append( div );
                     }
                     if ( sessionStorage[ "myprivkey" ] ) {
@@ -801,7 +804,7 @@
                         //make rejected proposals disappear
                         $( '.no_past_proposals' ).style.display = "none";
                         $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
-                        $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
+                        if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                         $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
@@ -858,11 +861,16 @@
                             var all_sigs_are_valid = true;
                             var i; for ( i=0; i<inputs.length; i++ ) {
                                 var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
-                                var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
+                                try {
+                                    var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
+                                } catch ( e ) {
+                                    var is_valid = false;
+                                }
                                 if ( !is_valid ) all_sigs_are_valid = false;
                             }
                             if ( !all_sigs_are_valid ) return;
                         }
+                        if ( proposal in sigs && event.pubkey in sigs[ proposal ] && sigs[ proposal ][ event.pubkey ].length ) return;
                         sigs[ proposal ][ event.pubkey ] = all_sigs;
                         $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
                         $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
@@ -892,14 +900,20 @@
                             var txid = await pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
                             sessionStorage[ "loop_num" ] = "2";
                         } else if ( txdata ) {
-                            var txid = tapscript.Tx.util.getTxid( txdata );
-                            var tx_exists = await checkIfTxHappened( txid );
-                            if ( !tx_exists ) {
-                                var rand = Math.floor( Math.random() * 3000 );
-                                setTimeout( function() {
-                                    pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
-                                }, Number( rand ) + 1000 );
-                            }
+                            //I am disabling this else statement because I don't think I need it anymore
+                            //but I am not sure so I am keeping it aroud just in case
+                            //it used to rebroadcast transactions that should have been broadcast but
+                            //were accidentally not broadcasted -- but I do not think that is necessary
+                            //now because of the new way I put things into the dont_broadcast category,
+                            //which I now only do if the transaction's inputs don't exist
+                            // var txid = tapscript.Tx.util.getTxid( txdata );
+                            // var tx_exists = await checkIfTxHappened( txid );
+                            // if ( !tx_exists ) {
+                            //     var rand = Math.floor( Math.random() * 3000 );
+                            //     setTimeout( function() {
+                            //         pushBTCpmt( tapscript.Tx.encode( txdata ).hex, mempoolNetwork );
+                            //     }, Number( rand ) + 1000 );
+                            // }
                         }
                         var it_was_only_a_statement = true;
                         Object.keys( sigs[ proposal ] ).forEach( item => {
@@ -911,13 +925,25 @@
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
                             var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
                             $( '.no_past_proposals' ).style.display = "none";
-                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
+                            if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                             $( '.past_proposals' ).append( second_statement );
                         } else {
                             $( '.no_past_proposals' ).style.display = "none";
-                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
+                            if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                             $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
-                            $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank" data-txhex="${tapscript.Tx.encode( txdata ).hex}" onclick='pushBTCpmt( this.getAttribute( "data-txhex" ), "${mempoolNetwork}" )'>View this transaction</a></p>`;
+                            if ( txdata ) {
+                                try {
+                                    var tx = tapscript.Tx.decode( tapscript.Tx.encode( txdata ).hex );
+                                    var txid = tapscript.Tx.util.getTxid( tx );
+                                } catch ( e ) {
+                                    console.log( "error 0:", txdata );
+                                    var tx = tapscript.Tx.decode( tapscript.Tx.encode( txdata ).hex );
+                                    console.log( "error 1:", tx );
+                                    var txid = tapscript.Tx.util.getTxid( tx );
+                                    console.log( "error 2:", txid );
+                                }
+                            }
+                            if ( txdata && $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = `<p><a href="https://mempool.space/${mempoolNetwork}tx/${txid}" target="_blank" data-txhex="${tapscript.Tx.encode( txdata ).hex}" onclick='pushBTCpmt( this.getAttribute( "data-txhex" ), "${mempoolNetwork}" )'>View this transaction</a></p>`;
                         }
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
