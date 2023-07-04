@@ -233,6 +233,7 @@
                 // 'wss://zee-relay.fly.dev': 0
             }
             sessionStorage[ "utxos" ] = "[]";
+            var known_proposals = [];
             var getting_info_for = [];
             var threshold = null;
             var dont_broadcast = [];
@@ -511,8 +512,9 @@
                     addOutput();
                 }
                 if ( kind === 2859 ) {
+                    if ( known_proposals.includes( event.id ) ) return;
+                    known_proposals.push( event.id );
                     await waitForBalanceToLoad();
-                    if ( $( `.proposal_${event.id}` ) ) return;
                     console.log( `nothing equivalent to proposal_${event.id} exists!` );
                     var proposal = JSON.parse( content );
                     var html = `
