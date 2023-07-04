@@ -579,7 +579,7 @@
                               vout : proposal[ 2 ]
                             });
                             var txid = tapscript.Tx.util.getTxid( txdata );
-                            var tx_exists = await checkIfTxExists( txid );
+                            var tx_exists = await checkIfTxHappened( txid );
                             if ( tx_exists ) var proposal_should_go_in_past_proposals = true;
                         } catch( e ) {}
                         var fee_amount = from_amount - ( to_amount + change_amount );
@@ -1339,7 +1339,7 @@
                     return waitForOneRelay();
                 }
             }
-            var checkIfTxExists = async txid => {
+            var checkIfTxHappened = async txid => {
                 var data = await getData( `https://mempool.space/${mempoolNetwork}api/tx/${txid}` );
                 if ( data != "Transaction not found" ) return true;
             }
