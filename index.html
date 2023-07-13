@@ -172,8 +172,11 @@
                 color: black;
             }
             @media screen and (max-width: 600px) {
-                .output_addy, .output_amt, .proposed_output, .proposed_amt {
+                .output_addy, .proposed_output, .proposed_amt {
                     width: 100%;
+                }
+                .output_amt {
+                    width: calc( 100% - 2.5rem );
                 }
                 .menu {
                     cursor: pointer;
