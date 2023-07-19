@@ -1377,13 +1377,13 @@
                 if ( !!relays[ relay ] ) {
                     if ( relays[ relay ].readyState == 1 ) {
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
-                          var myrelay = Object.keys( relays )[ i ];
-                          if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
-                          relays[ myrelay ].addEventListener( "message", handleMessage );
-                          var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
-                          var filter  = { "ids": [ $_GET[ "multisig"] ] }
-                          var subscription = [ "REQ", subId, filter ];
-                          relays[ myrelay ].send( JSON.stringify( subscription ) );
+                            var myrelay = Object.keys( relays )[ i ];
+                            if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
+                            relays[ myrelay ].addEventListener( "message", handleMessage );
+                            var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
+                            var filter  = { "ids": [ $_GET[ "multisig"] ] }
+                            var subscription = [ "REQ", subId, filter ];
+                            relays[ myrelay ].send( JSON.stringify( subscription ) );
                         }
                         return true;
                     } else {
