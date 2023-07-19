@@ -308,7 +308,7 @@
                 var profile = document.createElement( "div" );
                 profile.className = `profile profile_${identifier}`;
                 profile.innerHTML = `
-                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;">Profile not found</div></div>
                 `;
                 $( '.nostr_profiles' ).append( profile );
                 $( '.multisig_num' ).innerText = $$( '.select_npub' ).length;
@@ -320,7 +320,7 @@
                 if ( !npub ) {
                     npub = $( div_to_get ).getAttribute( "data-npub" );
                     $( div_to_get ).innerHTML = `
-                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;">Profile not found</div></div>
                     `;
                     getting_info_for.splice( getting_info_for.indexOf( JSON.stringify( [ npub, identifier ] ) ), 1 );
                     return;
@@ -340,6 +340,10 @@
                     await waitSomeSeconds( 2 );
                     relays[ myrelay ].close();
                 }
+                $$( '.profile' ).forEach( item => {
+                    if ( item.getAttribute( "data-npub" ) != npub ) return;
+                    setTimeout( () => {item.style.display = "inline-block";}, 3000 );
+                });
             }
             function pubkeyFromNpub(npub) {
                 return Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(npub).words)).toString("hex");
