@@ -233,17 +233,13 @@
             sessionStorage.clear();
             var relays = {
                 'wss://relay.damus.io': null,
-                'wss://relay.honk.pw/': null,
                 'wss://nostr.randomdevelopment.biz': null,
-                'wss://relay.honk.pw': null,
-                // 'wss://zee-relay.fly.dev': null
+                'wss://nostr.uthark.com': null,
             }
             var bad_relays = {
                 'wss://relay.damus.io': 0,
-                'wss://relay.honk.pw/': 0,
                 'wss://nostr.randomdevelopment.biz': 0,
-                'wss://relay.honk.pw': 0,
-                // 'wss://zee-relay.fly.dev': 0
+                'wss://nostr.uthark.com': 0,
             }
             sessionStorage[ "utxos" ] = "[]";
             var known_proposals = [];
