@@ -341,8 +341,11 @@
                     relays[ myrelay ].close();
                 }
                 $$( '.profile' ).forEach( item => {
-                    if ( item.getAttribute( "data-npub" ) != npub ) return;
-                    setTimeout( () => {item.firstElementChild.style.display = "inline-block";}, 3000 );
+                    setTimeout( () => {
+                        var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
+                        if ( !innerText ) innerText = "Profile not found";
+                        item.firstElementChild.style.display = "inline-block";
+                    }, 3000 );
                 });
             }
             function pubkeyFromNpub(npub) {
