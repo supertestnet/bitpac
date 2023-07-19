@@ -342,7 +342,7 @@
                 }
                 $$( '.profile' ).forEach( item => {
                     if ( item.getAttribute( "data-npub" ) != npub ) return;
-                    setTimeout( () => {item.style.display = "inline-block";}, 3000 );
+                    setTimeout( () => {item.firstElementChild.style.display = "inline-block";}, 3000 );
                 });
             }
             function pubkeyFromNpub(npub) {
