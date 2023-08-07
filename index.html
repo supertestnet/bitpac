@@ -529,7 +529,7 @@
                     $$( '.profile' ).forEach( item => {
                         setTimeout( () => {
                             var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
-                            if ( !innerText ) item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
+                            if ( !innerText || innerText === "undefined" ) item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
                             item.firstElementChild.style.display = "inline-block";
                         }, 3000 );
                     });
