@@ -340,6 +340,13 @@
                     await waitSomeSeconds( 2 );
                     relays[ myrelay ].close();
                 }
+                $$( '.profile' ).forEach( item => {
+                    setTimeout( () => {
+                        var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
+                        if ( !innerText || innerText === "undefined" ) item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
+                        item.firstElementChild.style.display = "inline-block";
+                    }, 3000 );
+                });
             }
             function pubkeyFromNpub(npub) {
                 return Buffer.from(bech32.bech32.fromWords(bech32.bech32.decode(npub).words)).toString("hex");
