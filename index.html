@@ -381,6 +381,7 @@
                     } else {
                         var div_to_get = `.profile_${sessionStorage[ "identifier" ]}`;
                         $( div_to_get ).setAttribute( "data-npub", pubkeyToNpub( event.pubkey ) );
+                        if ( !JSON.parse( content )[ "name" ] && !JSON.parse( content )[ "picture" ] ) return;
                         $( div_to_get ).firstElementChild.style.display = "inline-block";
                         $( `${div_to_get} .nym` ).innerText = JSON.parse( content )[ "name" ];
                         $( `${div_to_get} .pic` ).style.backgroundImage = `url( ${JSON.parse( content )[ "picture" ]} )`;
