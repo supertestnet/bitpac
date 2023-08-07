@@ -1382,6 +1382,7 @@
                         var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                             var myrelay = Object.keys( relays )[ i ];
                             if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
+                            if ( !$_GET[ "multisig"] ) continue;
                             relays[ myrelay ].addEventListener( "message", handleMessage );
                             var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                             var filter  = { "ids": [ $_GET[ "multisig"] ] }
@@ -1397,6 +1398,7 @@
                             var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                                 var myrelay = Object.keys( relays )[ i ];
                                 if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
+                                if ( !$_GET[ "multisig"] ) continue;
                                 relays[ myrelay ].addEventListener( "message", handleMessage );
                                 var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                                 var filter  = { "ids": [ $_GET[ "multisig"] ] }
@@ -1530,6 +1532,7 @@
                         var myrelay = Object.keys( relays )[ i ];
                         await waitForOneRelay();
                         if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
+                        if ( !$_GET[ "multisig"] ) continue;
                         relays[ myrelay ].addEventListener( "message", handleMessage );
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter  = { "ids": [ $_GET[ "multisig"] ] }
