@@ -842,7 +842,8 @@
                             $( `.proposal_${proposal} .deny` ).disabled = true;
                             $( `.proposal_${proposal} .approve` ).disabled = true;
                         }
-                        all_sigs = JSON.parse( content );
+                        if ( !all_sigs ) var all_sigs = [];
+                        all_sigs.push( JSON.parse( content )[ 0 ] );
                         //todo: fix the issue whereby these lines sometimes result in
                         //a proposal seeming to be approved multiple times by the same
                         //person
@@ -880,6 +881,7 @@
                             var all_sigs_are_valid = true;
                             var i; for ( i=0; i<inputs.length; i++ ) {
                                 var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
+                                console.log( "here is the sighash:", sighash.hex, "and the pubkey:", event.pubkey );
                                 try {
                                     var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
                                 } catch ( e ) {
