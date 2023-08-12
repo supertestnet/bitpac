@@ -538,8 +538,11 @@
                     $$( '.profile' ).forEach( item => {
                         setTimeout( () => {
                             var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
-                            if ( !innerText || innerText === "undefined" ) item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
-                            item.firstElementChild.style.display = "inline-block";
+                            if ( !innerText || innerText === "undefined" ) {
+                                item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
+                                $( '.loading_profiles' ).style.display = "none";
+                                item.firstElementChild.style.display = "inline-block";
+                            }
                         }, 3000 );
                     });
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
