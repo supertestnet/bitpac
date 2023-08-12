@@ -881,7 +881,6 @@
                             var all_sigs_are_valid = true;
                             var i; for ( i=0; i<inputs.length; i++ ) {
                                 var sighash = tapscript.Signer.taproot.hash( txdata, i, { extension: tapleaf } );
-                                console.log( "here is the sighash:", sighash.hex, "and the pubkey:", event.pubkey );
                                 try {
                                     var is_valid = await nobleSecp256k1.schnorr.verify( all_sigs[ i ], bytesToHex( sighash ), event.pubkey );
                                 } catch ( e ) {
