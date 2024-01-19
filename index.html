@@ -843,9 +843,11 @@
                             $( `.proposal_${proposal} .approve` ).disabled = true;
                         }
                         if ( !all_sigs ) var all_sigs = [];
-                        JSON.parse( content ).forEach( item => {
-                            all_sigs.push( item );
-                        });
+                        if ( content != "1" ) {
+                            JSON.parse( content ).forEach( item => {
+                                all_sigs.push( item );
+                            });
+                        }
                         //todo: fix the issue whereby these lines sometimes result in
                         //a proposal seeming to be approved multiple times by the same
                         //person
