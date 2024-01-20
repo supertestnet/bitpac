@@ -375,6 +375,7 @@
                 }
                 if ( kind === 0 ) {
                     if ( $_GET[ "multisig" ] ) {
+                        await getNote( "ready_to_load_profiles" );
                         var i; for ( i=0; i<67; i++ ) {
                             if ( i > $$( ".profile" ).length - 1 ) continue;
                             var div_to_get = `.profile_${event.pubkey}_${i}`;
@@ -527,36 +528,19 @@
                         showPage( "login_form" );
                     }
                     $( '.craft_proposal' ).onclick = spendCoins;
-                    var i; for ( i=0; i<temp_multisig.length; i++ ) {
-                        var item = temp_multisig[ i ];
-                        var profile = document.createElement( "div" );
-                        profile.className = `profile profile_${item}_${i}`;
-                        profile.innerHTML = `
-                            <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
-                        `;
-                        $$( '.nostr_profiles' )[ 1 ].append( profile );
-                    }
-                    $$( '.profile' ).forEach( item => {
-                        setTimeout( () => {
-                            var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
-                            if ( !innerText || innerText === "undefined" ) {
-                                item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
-                                $( '.loading_profiles' ).style.display = "none";
-                                item.firstElementChild.style.display = "inline-block";
-                            }
-                        }, 3000 );
-                    });
+                    loadProfiles( temp_multisig );
                     var i; for ( i=0; i<Object.keys( relays ).length; i++ ) {
                         var myrelay = Object.keys( relays )[ i ];
                         await waitForOneRelay( true );
                         if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
-                        var filter = { authors: temp_multisig, kinds: [ 0 ], limit: 1 }
+                        var filter = { authors: temp_multisig, kinds: [ 0 ], limit: temp_multisig.length }
                         var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
                         var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ], since: one_month_ago }
                         var subscription = [ "REQ", subId, filter, filter2 ];
                         relays[ myrelay ].addEventListener( "message", handleMessage );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
+                        sessionStorage[ "ready_to_load_profiles" ] = true;
                     }
                     $( '.none_currently' ).innerText = "None currently";
                     addOutput();
@@ -1461,6 +1445,49 @@
             var checkIfTxHappened = async txid => {
                 var data = await getData( `https://mempool.space/${mempoolNetwork}api/tx/${txid}` );
                 if ( data != "Transaction not found" ) return true;
+            }
+            sessionStorage.removeItem( "ready_to_load_profiles" );
+            async function getNote( item ) {
+                async function isNoteSetYet( note_i_seek ) {
+                    return new Promise( function( resolve, reject ) {
+                        if ( !note_i_seek ) {
+                            setTimeout( async function() {
+                                var msg = await isNoteSetYet( sessionStorage[ item ] );
+                                resolve( msg );
+                            }, 100 );
+                        } else {
+                            resolve( note_i_seek );
+                        }
+                    });
+                }
+                async function getTimeoutData() {
+                    var note_i_seek = await isNoteSetYet( sessionStorage[ item ] );
+                    return note_i_seek;
+                }
+                var returnable = await getTimeoutData();
+                return returnable;
+            }
+            var loadProfiles = async temp_multisig => {
+                await getNote( "ready_to_load_profiles" );
+                var i; for ( i=0; i<temp_multisig.length; i++ ) {
+                    var item = temp_multisig[ i ];
+                    var profile = document.createElement( "div" );
+                    profile.className = `profile profile_${item}_${i}`;
+                    profile.innerHTML = `
+                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                    `;
+                    $$( '.nostr_profiles' )[ 1 ].append( profile );
+                }
+                $$( '.profile' ).forEach( item => {
+                    setTimeout( () => {
+                        var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
+                        if ( !innerText || innerText === "undefined" ) {
+                            item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
+                            $( '.loading_profiles' ).style.display = "none";
+                            item.firstElementChild.style.display = "inline-block";
+                        }
+                    }, 3000 );
+                });
             }
         </script>
     </head>
