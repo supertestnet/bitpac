@@ -833,6 +833,8 @@
                             JSON.parse( content ).forEach( item => {
                                 all_sigs.push( item );
                             });
+                        } else {
+                            all_sigs.push( 1 );
                         }
                         //todo: fix the issue whereby these lines sometimes result in
                         //a proposal seeming to be approved multiple times by the same
