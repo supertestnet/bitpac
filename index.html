@@ -175,12 +175,16 @@
             .modal * {
                 color: black;
             }
+            .proposal_name_and_author {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
             .proposal_author {
                 display: flex;
                 align-items: center;
                 background-color: pink;
                 border-radius: 2rem;
-                float: right;
                 padding: 0.5rem;
                 border: 1px solid black;
             }
@@ -222,8 +226,13 @@
                     margin-bottom: 1rem;
                 }
                 .proposal_author {
-                    float: none;
-                    margin-bottom: 1rem;
+                    width: 100%;
+                }
+                .proposal_name_and_author {
+                    flex-direction: column-reverse;
+                }
+                .proposal_name_div {
+                    width: 100%;
                 }
             }
         </style>
@@ -572,8 +581,7 @@
                         if ( !relays[ myrelay ] || relays[ myrelay ].readyState != 1 ) continue;
                         var subId   = bytesToHex( nobleSecp256k1.utils.randomPrivateKey() ).toString( "hex" ).substring( 0, 24 );
                         var filter = { authors: temp_multisig, kinds: [ 0 ], limit: temp_multisig.length }
-                        var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
-                        var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ], since: one_month_ago }
+                        var filter2 = { authors: temp_multisig, kinds: [ 2859 ], "#e": [ $_GET[ "multisig" ] ] }
                         var subscription = [ "REQ", subId, filter, filter2 ];
                         relays[ myrelay ].addEventListener( "message", handleMessage );
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
@@ -585,19 +593,26 @@
                 if ( kind === 2859 ) {
                     if ( known_proposals.includes( event.id ) ) return;
                     known_proposals.push( event.id );
+                    var prop_id = event.id;
                     await waitForBalanceToLoad();
+                    var one_month_ago = Math.floor( Date.now() / 1000 ) - ( 60 * 60 * 24 * 30 );
+                    var proposal_should_go_in_past_proposals = false;
+                    if ( event.created_at - one_month_ago < 0 ) proposal_should_go_in_past_proposals = true;
                     $( '.no_statements' ).innerText = "None yet";
                     $( '.no_past_proposals' ).innerText = "None yet";
                     var proposal = JSON.parse( content );
                     var html = `
-                        <div class="proposal_author">
-                            <div class="proposal_author_pic"></div>
-                            <div class="proposal_author_nym"></div>
+                        <div class="proposal_name_and_author">
+                            <div class="proposal_name_div"><p class="proposal_name" style="font-weight: bold;"></p></div>
+                            <div class="proposal_author">
+                                <div class="proposal_author_pic"></div>
+                                <div class="proposal_author_nym"></div>
+                            </div>
                         </div>
-                        <p class="proposal_name" style="font-weight: bold;"></p>
                         <div class="proposal_statement"></div>
                         <div class="expense_info"></div>
                         <div class="computed_proposal_info"></div>
+                        <div class="countdown_div"><h2>Proposal expiry</h2><p class="countdown"></p></div>
                         <div class="voters_for hidden"><h2>For</h2></div>
                         <div class="voters_against hidden"><h2>Against</h2></div>
                         <div class="voters_undecided"><h2>Not voted yet</h2></div>
@@ -612,6 +627,10 @@
                     if ( proposal[ 3 ] ) {
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
                     }
+                    var when_proposed = event.created_at;
+                    var seconds_til_disappears = when_proposed - one_month_ago;
+                    var friendly_time = convertHMS( seconds_til_disappears );
+                    div.getElementsByClassName( "countdown" )[ 0 ].innerText = friendly_time;
                     Object.keys( members ).forEach( item => {
                         var member = members[ item ];
                         var html = div.getElementsByClassName( "voters_undecided" )[ 0 ].innerHTML;
@@ -646,7 +665,7 @@
                             return true;
                         });
                         if ( !input_utxos_are_ours ) {
-                            var proposal_should_go_in_past_proposals = true;
+                            proposal_should_go_in_past_proposals = true;
                             dont_broadcast.push( event.id );
                         }
                         $( '.none_currently' ).style.display = "none";
@@ -675,7 +694,7 @@
                             });
                             var txid = tapscript.Tx.util.getTxid( txdata );
                             var tx_exists = await checkIfTxHappened( txid );
-                            if ( tx_exists ) var proposal_should_go_in_past_proposals = true;
+                            if ( tx_exists ) proposal_should_go_in_past_proposals = true;
                         } catch( e ) {}
                         var fee_amount = from_amount - ( to_amount + change_amount );
                         if ( fee_amount < 1 && !proposal_should_go_in_past_proposals ) {
@@ -821,6 +840,8 @@
                         div.getElementsByClassName( "approve_or_deny" )[ 0 ].style.display = "none";
                         if ( div.getElementsByClassName( "fee_parent" )[ 0 ] ) div.getElementsByClassName( "fee_parent" )[ 0 ].innerHTML = ``;
                         $( '.past_proposals' ).append( div );
+                        $( `.past_proposals .proposal_${prop_id} .voters_undecided` ).classList.add( "hidden" );
+                        $( `.past_proposals .proposal_${prop_id} .countdown_div` ).classList.add( "hidden" );
                     }
                     if ( sessionStorage[ "myprivkey" ] ) {
                         $$( '.current_proposals .approve_or_deny' ).forEach( item => {
@@ -887,6 +908,7 @@
                         if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                         $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
                         $( `.past_proposals .proposal_${proposal} .voters_undecided` ).classList.add( "hidden" );
+                        $( `.past_proposals .proposal_${proposal} .countdown_div` ).classList.add( "hidden" );
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
@@ -1022,6 +1044,7 @@
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
                             $( `.statements .proposal_${proposal} .voters_undecided` ).classList.add( "hidden" );
+                            $( `.statements .proposal_${proposal} .countdown_div` ).classList.add( "hidden" );
                             var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
                             $( '.no_past_proposals' ).style.display = "none";
                             if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
@@ -1587,6 +1610,29 @@
                         }
                     }, 3000 );
                 });
+            }
+            function convertHMS( value ) {
+                if ( value < 0 ) value = 0;
+                var sec = parseInt(value, 10); // convert value to number if it's string
+                var years = Math.floor(sec / 31536000); // get years
+                var months = Math.floor((sec - (years * 31536000)) / 2592000); // get months
+                var days = Math.floor((sec - (years * 31536000) - (months * 2592000)) / 86400); // get days
+                var hours = Math.floor((sec - (years * 31536000) - (months * 2592000) - (days * 86400)) / 3600); // get hours
+                var minutes = Math.floor((sec - (years * 31536000) - (months * 2592000) - (days * 86400) - (hours * 3600)) / 60); // get minutes
+                var seconds = sec - (years * 31536000) - (months * 2592000) - (days * 86400) - (hours * 3600) - (minutes * 60); //  get seconds
+                var yearsstring = (years != 1) ? `years`:`year`;
+                var monthsstring = (months != 1) ?  `months`:`month`;
+                var daysstring = (days != 1) ? `days`:`day`;
+                var hoursstring = (hours != 1) ? `hours`:`hour`;
+                var minutesstring = (minutes != 1) ? `minutes`:`minute`;
+                var secondsstring = (seconds != 1) ? `seconds`:`second`;
+                if ( years > 0 ) return `${years} ${yearsstring}`;
+                if ( months > 0 ) return `${months} ${monthsstring}`;
+                if ( days > 0 ) return `${days} ${daysstring}`;
+                if ( hours > 0 ) return `${hours} ${hoursstring}`;
+                if ( minutes > 0 ) return `${minutes} ${minutesstring}`;
+                if ( seconds == 0 ) return `${seconds} seconds`;
+                return `${seconds} ${secondsstring}`;
             }
         </script>
     </head>
