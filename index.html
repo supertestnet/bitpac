@@ -42,6 +42,9 @@
             textarea {
                 height: 8rem;
             }
+            .hidden {
+                display: none !important;
+            }
             .multisig_viewer, .balance, .statements, .current_proposals,
             .past_proposals, .crafter, .spend_info {
                 display: none;
@@ -172,6 +175,29 @@
             .modal * {
                 color: black;
             }
+            .proposal_author {
+                display: flex;
+                align-items: center;
+                background-color: pink;
+                border-radius: 2rem;
+                float: right;
+                padding: 0.5rem;
+                border: 1px solid black;
+            }
+            .proposal_author_nym {
+                margin-left: 0.5rem;
+            }
+            .proposal_author_pic {
+                width: 2rem;
+                height: 2rem;
+                border-radius: 50%;
+                background-size: cover;
+                background-position: 50% 50%;
+                background-repeat: no-repeat;
+            }
+            .voters_for, .voters_against {
+                margin-top: 1rem;
+            }
             @media screen and (max-width: 600px) {
                 .output_addy, .proposed_output, .proposed_amt {
                     width: 100%;
@@ -193,6 +219,10 @@
                     display: block;
                 }
                 .proposed_output {
+                    margin-bottom: 1rem;
+                }
+                .proposal_author {
+                    float: none;
                     margin-bottom: 1rem;
                 }
             }
@@ -249,6 +279,7 @@
             var dont_broadcast = [];
             var sigs = {}
             var denys = {}
+            var members = {}
             var sha256  = bitcoinjs.crypto.sha256;
             var { getSharedSecret, schnorr, utils } = nobleSecp256k1;
             var bytesToHex = ( bytes ) => {return bytes.reduce( ( str, byte ) => str + byte.toString( 16 ).padStart( 2, "0" ), "" );}
@@ -388,6 +419,10 @@
                             if ( !name ) name = JSON.parse( content )[ "name" ];
                             $( `${div_to_get} .nym` ).innerText = name;
                             $( `${div_to_get} .pic` ).style.backgroundImage = `url( ${JSON.parse( content )[ "picture" ]} )`;
+                            members[ event.pubkey ] = {
+                                nym: name,
+                                pic: JSON.parse( content )[ "picture" ],
+                            }
                         }
                     } else {
                         var div_to_get = `.profile_${sessionStorage[ "identifier" ]}`;
@@ -555,17 +590,39 @@
                     $( '.no_past_proposals' ).innerText = "None yet";
                     var proposal = JSON.parse( content );
                     var html = `
+                        <div class="proposal_author">
+                            <div class="proposal_author_pic"></div>
+                            <div class="proposal_author_nym"></div>
+                        </div>
                         <p class="proposal_name" style="font-weight: bold;"></p>
                         <div class="proposal_statement"></div>
+                        <div class="expense_info"></div>
+                        <div class="computed_proposal_info"></div>
+                        <div class="voters_for hidden"><h2>For</h2></div>
+                        <div class="voters_against hidden"><h2>Against</h2></div>
+                        <div class="voters_undecided"><h2>Not voted yet</h2></div>
                     `;
                     var div = document.createElement( "div" );
                     div.innerHTML = html;
                     div.className = `proposal_div proposal_${event.id}`;
                     div.style = "border: 1px solid black; border-radius: 1rem; padding: 1rem;"
+                    div.getElementsByClassName( "proposal_author_pic" )[ 0 ].style.backgroundImage = `url("${members[ event.pubkey ][ "pic" ]}")`;
+                    div.getElementsByClassName( "proposal_author_nym" )[ 0 ].innerText = members[ event.pubkey ][ "nym" ];
                     div.getElementsByClassName( "proposal_name" )[ 0 ].innerText = proposal[ 0 ];
                     if ( proposal[ 3 ] ) {
                         div.getElementsByClassName( "proposal_statement" )[ 0 ].innerText = proposal[ 3 ];
                     }
+                    Object.keys( members ).forEach( item => {
+                        var member = members[ item ];
+                        var html = div.getElementsByClassName( "voters_undecided" )[ 0 ].innerHTML;
+                        html += `
+                            <div class="proposal_author undecided_${item}" style="margin: 0.5rem; float: none;">
+                                <div class="proposal_author_pic" style="background-image: url( '${member[ "pic" ]}' )"></div>
+                                <div class="proposal_author_nym">${member[ "nym" ]}</div>
+                            </div>
+                        `;
+                        div.getElementsByClassName( "voters_undecided" )[ 0 ].innerHTML = html;
+                    });
                     if ( !proposal[ 1 ].length && !proposal[ 3 ] ) return;
                     if ( proposal[ 1 ].length && proposal[ 2 ].length ) {
                         var from_amount = Number( $( '.bitpac_balance_sats' ).innerText );
@@ -609,7 +666,7 @@
                             `;
                             div2.getElementsByClassName( "output_addy" )[ 0 ].value = tapscript.Address.fromScriptPubKey( item.scriptPubKey, mempoolnet );
                             div2.getElementsByClassName( "output_amt" )[ 0 ].value = item.value + " sats";
-                            div.append( div2 );
+                            div.getElementsByClassName( "expense_info" )[ 0 ].append( div2 );
                         });
                         try {
                             var txdata = tapscript.Tx.create({
@@ -659,7 +716,7 @@
                         //overestimating fees anyway due to not understanding how the witness
                         //discount works so this should be safe
                         if ( fee_amount < min_fee ) fee.innerHTML += `<p class="fee_warning">Warning, this is a low fee, likely to be rejected by miners. The estimated size of this transaction is ${txsize} bytes and the lowest feerate that most mempools accept right now is ${fee_options[ 0 ]} sat per byte. That means your tx should pay at least ${min_fee} sats as a fee. Be careful what you sign.</p>`;
-                        div.append( fee );
+                        div.getElementsByClassName( "expense_info" )[ 0 ].append( fee );
                     }
                     var buttons = document.createElement( "div" );
                     buttons.className = "approve_or_deny";
@@ -743,8 +800,7 @@
                         console.log( "approved!" );
                         // window.location.reload();
                     }
-                    var sigs_obtained = document.createElement( "div" );
-                    sigs_obtained.className = "computed_proposal_info";
+                    var sigs_obtained = div.getElementsByClassName( "computed_proposal_info" )[ 0 ];
                     sigs_obtained.innerHTML = `
                         Approvals: <span class="sigs_obtained">0</span><br>
                         Denials: <span class="denys_obtained">0</span><br>
@@ -752,7 +808,6 @@
                         <div class="denials_needed">Denials needed to fail: ${( $$( '.profile' ).length - threshold ) + 1}<br></div>
                         <div class="num_of_respondents">Number of respondents so far: <span class="respondents_num">0</span> out of ${$$( '.profile' ).length}</div>
                     `;
-                    div.append( sigs_obtained );
                     if ( !proposal_should_go_in_past_proposals ) {
                         $( '.current_proposals' ).append( div );
                     } else {
@@ -805,12 +860,23 @@
                         }
                         $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
                         $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
+                        var html = $( `.proposal_${proposal} .voters_against` ).innerHTML;
+                        html += `
+                            <div class="proposal_author" style="margin: 0.5rem; float: none;">
+                                <div class="proposal_author_pic" style="background-image: url( '${members[ event.pubkey ][ "pic" ]}' )"></div>
+                                <div class="proposal_author_nym">${members[ event.pubkey ][ "nym" ]}</div>
+                            </div>
+                        `;
+                        $( `.proposal_${proposal} .voters_against` ).innerHTML = html;
+                        $( `.proposal_${proposal} .voters_against` ).classList.remove( "hidden" );
+                        $( `.proposal_${proposal} .undecided_${event.pubkey}` ).classList.add( "hidden" );
                         if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
                         //make rejected proposals disappear
                         $( '.no_past_proposals' ).style.display = "none";
                         $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
                         if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
                         $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
+                        $( `.past_proposals .proposal_${proposal} .voters_undecided` ).classList.add( "hidden" );
                         $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
                         $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
                         var number_of_visible_proposals = 0;
@@ -886,6 +952,16 @@
                         sigs[ proposal ][ event.pubkey ] = all_sigs;
                         $( `.proposal_${proposal} .sigs_obtained` ).innerText = Number( $( `.proposal_${proposal} .sigs_obtained` ).innerText ) + 1;
                         $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
+                        var html = $( `.proposal_${proposal} .voters_for` ).innerHTML;
+                        html += `
+                            <div class="proposal_author" style="margin: 0.5rem; float: none;">
+                                <div class="proposal_author_pic" style="background-image: url( '${members[ event.pubkey ][ "pic" ]}' )"></div>
+                                <div class="proposal_author_nym">${members[ event.pubkey ][ "nym" ]}</div>
+                            </div>
+                        `;
+                        $( `.proposal_${proposal} .voters_for` ).innerHTML = html;
+                        $( `.proposal_${proposal} .voters_for` ).classList.remove( "hidden" );
+                        $( `.proposal_${proposal} .undecided_${event.pubkey}` ).classList.add( "hidden" );
                         if ( Object.keys( sigs[ proposal ] ).length != threshold ) return;
                         var i; for ( i=0; i<JSON.parse( content ).length; i++ ) {
                             //put sigs in reverse order of multisig keys
@@ -935,6 +1011,7 @@
                         if ( it_was_only_a_statement ) {
                             $( '.no_statements' ).style.display = "none";
                             $( '.statements' ).append( $( `.proposal_${proposal}` ) );
+                            $( `.statements .proposal_${proposal} .voters_undecided` ).classList.add( "hidden" );
                             var second_statement = $( `.proposal_${proposal}` ).cloneNode( true );
                             $( '.no_past_proposals' ).style.display = "none";
                             if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
@@ -1486,7 +1563,15 @@
                     setTimeout( () => {
                         var innerText = item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText;
                         if ( !innerText || innerText === "undefined" ) {
-                            item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = "Profile not found";
+                            var pubkey = item.classList[ 1 ];
+                            pubkey = pubkey.substring( pubkey.indexOf( "_" ) + 1 );
+                            pubkey = pubkey.substring( 0, pubkey.indexOf( "_" ) );
+                            if ( !members[ pubkey ] ) members[ pubkey ] = {
+                                nym: pubkey.substring( 0, 15 ) + "...",
+                                pic: "https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg",
+                            }
+                            item.firstElementChild.getElementsByClassName( "nym" )[ 0 ].innerText = pubkey.substring( 0, 15 ) + "...";
+                            item.firstElementChild.getElementsByClassName( "pic" )[ 0 ].style.backgroundImage = `url("https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg")`;
                             $( '.loading_profiles' ).style.display = "none";
                             item.firstElementChild.style.display = "inline-block";
                         }
