@@ -731,7 +731,10 @@
                     inputs_and_outputs.getElementsByClassName( "inputs" )[ 0 ].innerText = JSON.stringify( proposal[ 1 ] );
                     inputs_and_outputs.getElementsByClassName( "outputs" )[ 0 ].innerText = JSON.stringify( proposal[ 2 ] );
                     div.append( inputs_and_outputs );
-                    div.getElementsByClassName( "deny" )[ 0 ].onclick = async () => {
+                    div.getElementsByClassName( "deny" )[ 0 ].onclick = async e => {
+                        var prop_id = e.target.classList[ 1 ].substring( e.target.classList[ 1 ].indexOf( "_" ) + 1 );
+                        $( `.proposal_${prop_id} .approve` ).disabled = true;
+                        $( `.proposal_${prop_id} .deny` ).disabled = true;
                         var seckey = sessionStorage[ "myprivkey" ];
                         var pubKey = nobleSecp256k1.getPublicKey( seckey, true ).substring( 2 );
                         var reply = {
@@ -753,7 +756,10 @@
                         console.log( "denied!" );
                         // window.location.reload();
                     }
-                    div.getElementsByClassName( "approve" )[ 0 ].onclick = async () => {
+                    div.getElementsByClassName( "approve" )[ 0 ].onclick = async e => {
+                        var prop_id = e.target.classList[ 1 ].substring( e.target.classList[ 1 ].indexOf( "_" ) + 1 );
+                        $( `.proposal_${prop_id} .approve` ).disabled = true;
+                        $( `.proposal_${prop_id} .deny` ).disabled = true;
                         var inputs = proposal[ 1 ];
                         var outputs = proposal[ 2 ];
                         var seckey = sessionStorage[ "myprivkey" ];
@@ -841,6 +847,10 @@
                     threshold = temp_multisig[ 0 ];
                     temp_multisig.splice( 0, 1 );
                     var proposal = event.tags[ 0 ][ 1 ];
+                    if ( event.pubkey == sessionStorage[ "mypubkey" ] ) {
+                        $( `.proposal_${proposal} .approve` ).disabled = true;
+                        $( `.proposal_${proposal} .deny` ).disabled = true;
+                    }
                     if ( !content ) {
                         if ( proposal in denys && Object.keys( denys[ proposal ] ).length > ( $$( '.profile' ).length - threshold ) + 1 ) return;
                         if ( !( proposal in denys ) ) denys[ proposal ] = {};
