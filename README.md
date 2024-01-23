@@ -51,11 +51,11 @@ A bitpac is a multisig with *public auditability.* Multisigs are usually private
 - [x] Make a splash page
 - [x] Learn why I sometimes need to reload the page and fix it so I don't
 - [x] Fix the issue where a voter can make proposals vanish by denying them many times
-- [ ] Display a countdown on each proposal for when it disappears
-- [ ] Let keyholders transfer or sell their voting rights
+- [x] Display a countdown on each proposal for when it disappears
+- [x] Ensure that *approved* and *rejected* proposals don’t disappear after the expiry
 - [ ] Make the 1 month expiry on proposals configurable
-- [ ] Ensure that *approved* and *rejected* proposals don’t disappear after the expiry
 - [ ] Let bitpacs add a proposal fee
 - [ ] Add support for holding ecash in the treasury
+- [ ] Let keyholders transfer or sell their voting rights
 
 ![](https://supertestnet.github.io/bitpac/bitpac.png)
