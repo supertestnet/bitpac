@@ -889,36 +889,46 @@
                             $( `.proposal_${proposal} .approve` ).disabled = true;
                             $( `.proposal_${proposal} .deny` ).disabled = true;
                         }
-                        $( `.proposal_${proposal} .denys_obtained` ).innerText = Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) + 1;
-                        $( `.proposal_${proposal} .respondents_num` ).innerText = Number( $( `.proposal_${proposal} .respondents_num` ).innerText ) + 1;
-                        var html = $( `.proposal_${proposal} .voters_against` ).innerHTML;
-                        html += `
-                            <div class="proposal_author" style="margin: 0.5rem; float: none;">
-                                <div class="proposal_author_pic" style="background-image: url( '${members[ event.pubkey ][ "pic" ]}' )"></div>
-                                <div class="proposal_author_nym">${members[ event.pubkey ][ "nym" ]}</div>
-                            </div>
-                        `;
-                        $( `.proposal_${proposal} .voters_against` ).innerHTML = html;
-                        $( `.proposal_${proposal} .voters_against` ).classList.remove( "hidden" );
-                        $( `.proposal_${proposal} .undecided_${event.pubkey}` ).classList.add( "hidden" );
-                        if ( Number( $( `.proposal_${proposal} .denys_obtained` ).innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
-                        //make rejected proposals disappear
-                        $( '.no_past_proposals' ).style.display = "none";
-                        $( `.proposal_${proposal} .approve_or_deny` ).style.display = "none";
-                        if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
-                        $( '.past_proposals' ).append( $( `.proposal_${proposal}` ) );
-                        $( `.past_proposals .proposal_${proposal} .voters_undecided` ).classList.add( "hidden" );
-                        $( `.past_proposals .proposal_${proposal} .countdown_div` ).classList.add( "hidden" );
-                        $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
-                        $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
-                        var number_of_visible_proposals = 0;
-                        $$( '.current_proposals .proposal_div' ).forEach( item => {
-                            if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                        $$( `.proposal_${proposal}` ).forEach( item => {
+                            var denys_obtained = item.getElementsByClassName( "denys_obtained" )[ 0 ];
+                            var respondents_num = item.getElementsByClassName( "respondents_num" )[ 0 ];
+                            var voters_against = item.getElementsByClassName( "voters_against" )[ 0 ];
+                            var undecideds = item.getElementsByClassName( `undecided_${event.pubkey}` )[ 0 ];
+                            var approve_or_deny = item.getElementsByClassName( `approve_or_deny` )[ 0 ];
+                            var fee_parent = item.getElementsByClassName( `fee_parent` )[ 0 ];
+                            var voters_undecided = item.getElementsByClassName( `voters_undecided` )[ 0 ];
+                            var countdown_div = item.getElementsByClassName( `countdown_div` )[ 0 ];
+                            denys_obtained.innerText = Number( denys_obtained.innerText ) + 1;
+                            respondents_num.innerText = Number( respondents_num.innerText ) + 1;
+                            var html = voters_against.innerHTML;
+                            html += `
+                                <div class="proposal_author" style="margin: 0.5rem; float: none;">
+                                    <div class="proposal_author_pic" style="background-image: url( '${members[ event.pubkey ][ "pic" ]}' )"></div>
+                                    <div class="proposal_author_nym">${members[ event.pubkey ][ "nym" ]}</div>
+                                </div>
+                            `;
+                            voters_against.innerHTML = html;
+                            voters_against.classList.remove( "hidden" );
+                            undecideds.classList.add( "hidden" );
+                            if ( Number( denys_obtained.innerText ) < ( ( $$( '.profile' ).length - threshold ) + 1 ) ) return;
+                            //make rejected proposals disappear
+                            $( '.no_past_proposals' ).style.display = "none";
+                            approve_or_deny.style.display = "none";
+                            if ( $( `.proposal_${proposal} .fee_parent` ) ) $( `.proposal_${proposal} .fee_parent` ).innerHTML = ``;
+                            $( '.past_proposals' ).append( item );
+                            voters_undecided.classList.add( "hidden" );
+                            countdown_div.classList.add( "hidden" );
+                            $( '.pprops' ).innerText = $$( `.past_proposals .proposal_div` ).length;
+                            $( '.cprops' ).innerText = $$( `.current_proposals .proposal_div` ).length;
+                            var number_of_visible_proposals = 0;
+                            $$( '.current_proposals .proposal_div' ).forEach( item => {
+                                if ( item.style.display != "none" ) number_of_visible_proposals = number_of_visible_proposals + 1;
+                            });
+                            if ( !number_of_visible_proposals ) {
+                                $( '.cprops' ).innerText = 0;
+                                $( '.none_currently' ).style.display = "block";
+                            }
                         });
-                        if ( !number_of_visible_proposals ) {
-                            $( '.cprops' ).innerText = 0;
-                            $( '.none_currently' ).style.display = "block";
-                        }
                     } else {
                         if ( proposal in sigs && Object.keys( sigs[ proposal ] ).length >= threshold ) return;
                         if ( !( proposal in sigs ) ) sigs[ proposal ] = {};
