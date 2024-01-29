@@ -89,6 +89,31 @@
             .profile {
                 display: inline-block;
                 vertical-align: middle;
+                width: 100%;
+                max-width: 10rem;
+                margin: 1rem 0.5rem;
+            }
+            .profile_wrapper {
+                width: 100%;
+                display: none;
+                background-color: white;
+                padding: 1rem;
+                border-radius: 1rem;
+                text-align: center;
+                border: 1px solid black;
+            }
+            .profile .pic {
+                width: 100%;
+                max-width: 8rem;
+                background-size: cover;
+                background-position: center center;
+                margin: auto;
+                margin-bottom: 1rem;
+            }
+            .nostr_profiles {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
             }
             .past_proposals {
                 margin-bottom: 1rem;
@@ -222,6 +247,10 @@
                 }
                 .menu .menu_items .menu_internal div {
                     display: block;
+                }
+                .profile {
+                    width: calc( 50% - 1rem );
+                    max-width: none;
                 }
                 .proposed_output {
                     margin-bottom: 1rem;
@@ -361,7 +390,7 @@
                 var profile = document.createElement( "div" );
                 profile.className = `profile profile_${identifier}`;
                 profile.innerHTML = `
-                    <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                    <div class="profile_wrapper"><div class="pic"></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                 `;
                 $( '.nostr_profiles' ).append( profile );
                 $( '.multisig_num' ).innerText = $$( '.select_npub' ).length;
@@ -373,7 +402,7 @@
                 if ( !npub ) {
                     npub = $( div_to_get ).getAttribute( "data-npub" );
                     $( div_to_get ).innerHTML = `
-                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                        <div class="profile_wrapper" style="display: none;"><div class="pic"></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                     `;
                     getting_info_for.splice( getting_info_for.indexOf( JSON.stringify( [ npub, identifier ] ) ), 1 );
                     return;
@@ -1621,7 +1650,7 @@
                     var profile = document.createElement( "div" );
                     profile.className = `profile profile_${item}_${i}`;
                     profile.innerHTML = `
-                        <div style="display: none; background-color: white; padding: 1rem; margin: 1rem 0.5rem; border-radius: 1rem; max-width: 10rem; text-align: center; border: 1px solid black;"><div style="width: 8rem; height: 8rem; background-size: cover; background-position: center center; margin-bottom: 1rem;" class="pic"><!--<img class="pic" style="width: 100%">--></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
+                        <div style="display: none;" class="profile_wrapper"><div class="pic"></div><div class="nym" style="color: black; word-wrap: break-word;"></div></div>
                     `;
                     $$( '.nostr_profiles' )[ 1 ].append( profile );
                 }
@@ -1726,6 +1755,11 @@
                 inner_fn( amount_to_decompose );
                 return decomposed;
             }
+            var resizer = async () => {
+                if ( $( '.profile .pic' ) ) $$( '.profile .pic' ).forEach( item => {item.style.height = item.offsetWidth + "px"});
+                await waitSomeSeconds( 0.05 );
+                resizer();
+            }
         </script>
     </head>
     <body>
@@ -1750,6 +1784,7 @@
         </div>
         <script>
             var init = async () => {
+                resizer();
                 dotLoop( "." );
                 if ( !$_GET[ "multisig" ] ) {
                     addNpub();
