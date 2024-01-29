@@ -6,6 +6,7 @@
         <title>Bitpac | Publicly auditable cooperatives on bitcoin</title>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/bitcoinjs-lib.js"></script>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
+        <script src="https://supertestnet.github.io/blind-sig-js/blindSigJS.js"></script>
         <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
         <script src="https://unpkg.com/@cmdcode/tapscript"></script>
         <script src="https://bundle.run/bech32@2.0.0"></script>
@@ -245,6 +246,17 @@
             for ( var key of url_keys ) $_GET[ key ] = url_params.get( key );
         </script>
         <script>
+            //file:///home/supertestnet/bitpac_new/index.html?multisig=2f2bcfac3d65b38566e1bebb4124b01b8b8c260c14d63134462ebbb9291d99d4
+
+            //nsec1k8u42lsxlr39k5kffmk735y4w9d0c49rmagch8qkgaeh507f85asjvk327
+            //npub1km59cyv30zum7u7chqr46apuruetp4meh7fslsyrg8v0l38acuesvxjt5w
+            
+            //nsec1av6xezay8zsn06f8zma04ydsqp73ql9y2q9r2fmyrul37d66qluq3s44l3
+            //npub1xfjngvj46d9x4w7np6jhsqhxj045vmjc66dqwul3rfhvjmyjxg3s8q7903
+
+            //nsec1ae63rxq0rm43dx7dzpttprkz3zz9u8kw2w83w9pzw6dm5ue8hvlqrv94mj
+            //npub1xalptdcq724w46r6y5wcrgp7ajkasvax6y7dg0tz5z8d0s070pzqjppuqx
+            var cashu_enabled = false;
             if ( !window.location.href.includes( "index.htm" ) ) {
                 var url = "https://" + window.location.hostname + "/onboard.html";
                 if ( $_GET[ "network" ] ) url += "?network=" + $_GET[ "network" ];
@@ -274,12 +286,12 @@
             var relays = {
                 'wss://relay.damus.io': null,
                 'wss://nos.lol': null,
-                'wss://booger.pro': null,
+                'wss://nostr.impervious.live': null,
             }
             var bad_relays = {
                 'wss://relay.damus.io': 0,
                 'wss://nos.lol': 0,
-                'wss://booger.pro': 0,
+                'wss://nostr.impervious.live': 0,
             }
             sessionStorage[ "utxos" ] = "[]";
             var known_proposals = [];
@@ -460,6 +472,17 @@
                     var tapleaf = tapscript.Tap.tree.getLeaf( sbytes );
                     var [ tpubkey, cblock ] = tapscript.Tap.getPubKey(pubkey, { target: tapleaf });
                     var multisig_address = tapscript.Address.p2tr.fromPubKey( tpubkey, mempoolnet );
+                    if ( cashu_enabled ) {
+                        var amount_to_send = prompt( 'enter an amount you want to send' );
+                        amount_to_send = Number( amount_to_send );
+                        if ( !amount_to_send ) return;
+                        var keysets = await getData( `https://testnut.cashu.space/v1/keysets` );
+                        keysets = JSON.parse( keysets )[ "keysets" ];
+                        var keyset;
+                        keysets.every( item => {if ( isValidHex( item.id ) && item.active ) {keyset = item.id;return;} return true;});
+                        var ecash_outputs = await getEcash( temp_multisig, amount_to_send, keyset );
+                        console.log( ecash_outputs );
+                    }
                     var url = "bitcoin:" + multisig_address;
                     var a = document.createElement( "a" );
                     a.href = url;
@@ -1643,6 +1666,65 @@
                 if ( minutes > 0 ) return `${minutes} ${minutesstring}`;
                 if ( seconds == 0 ) return `${seconds} seconds`;
                 return `${seconds} ${secondsstring}`;
+            }
+            function isValidHex( h ) {
+                if ( !h ) return;
+                var length = h.length;
+                if ( length % 2 ) return;
+                try {
+                    var a = BigInt( "0x" + h, "hex" );
+                } catch( e ) {
+                    return;
+                }
+                var unpadded = a.toString( 16 );
+                var padding = [];
+                var i; for ( i=0; i<length; i++ ) padding.push( 0 );
+                padding = padding.join( "" );
+                padding = padding + unpadded.toString();
+                padding = padding.slice( -Math.abs( length ) );
+                return ( padding === h );
+            }
+            var getEcash = async ( temp_multisig, amount, keyset ) => {
+                var ecash_amounts = decomposeAmount( amount );
+                var i; for ( i=0; i<ecash_amounts.length; i++ )
+                var nonce_for_message = bytesToHex( blindSigJS.getRand( 16 ) );
+                var pubkeys_tag = [ "pubkeys" ];
+                var first_pubkey = "02" + temp_multisig[ 0 ];
+                temp_multisig.forEach( ( item, index ) => {if ( index ) pubkeys_tag.push( "02" + item )});
+                var secret_for_message = [
+                    "P2PK",
+                    {
+                        "nonce": nonce_for_message,
+                        "data": first_pubkey,
+                        "tags": [
+                            [ "sigflag", "SIG_ALL" ],
+                            [ "n_sigs", String( threshold ) ],
+                            pubkeys_tag,
+                        ],
+                    }
+                ];
+                secret_for_message = JSON.stringify( secret_for_message );
+                var message = new blindSigJS.bsjMsg();
+                var B_ = await message.createBlindedMessageFromString( secret_for_message );
+                var output_B_hex = blindSigJS.ecPointToHex( B_ );
+                var output = {
+                    "amount": amount,
+                    "id": keyset,
+                    "B_": output_B_hex,
+                }
+                return output;
+            }
+            var decomposeAmount = amount_to_decompose => {
+                var decomposed = [];
+                var getBaseLog = ( x, y ) => Math.log(y) / Math.log(x);
+                var inner_fn = amt => {
+                    var exponent = Math.floor( getBaseLog( 2, amt ) );
+                    decomposed.push( 2 ** exponent );
+                    amount_to_decompose = amt - 2 ** exponent;
+                    if ( amount_to_decompose ) inner_fn( amount_to_decompose );
+                }
+                inner_fn( amount_to_decompose );
+                return decomposed;
             }
         </script>
     </head>
