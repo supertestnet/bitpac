@@ -639,7 +639,7 @@
                         relays[ myrelay ].send( JSON.stringify( subscription ) );
                         sessionStorage[ "ready_to_load_profiles" ] = true;
                     }
-                    $( '.none_currently' ).innerText = "None currently";
+                    if ( !isNaN( $( '.bitpac_balance_sats' ).innerText ) ) $( '.none_currently' ).innerText = "None currently";
                     addOutput();
                 }
                 if ( kind === 2859 ) {
@@ -1595,7 +1595,8 @@
                 return fixReadyState( relay );
             }
             var waitForBalanceToLoad = async () => {
-                if ( !isNaN( $( '.bitpac_balance_sats' ).innerText ) ) return;
+                if ( !isNaN( $( '.bitpac_balance_sats' ).innerText ) ) return $( '.none_currently' ).innerHTML = `None currently`;
+                if ( $( '.none_currently' ).innerText == "None currently" ) $( '.none_currently' ).innerHTML = `Loading<span class="dots">.</span>`;
                 await waitSomeSeconds( 1 );
                 return waitForBalanceToLoad();
             }
