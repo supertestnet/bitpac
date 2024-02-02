@@ -7,6 +7,7 @@
         <script src="https://supertestnet.github.io/bitcoin-chess/js/bitcoinjs-lib.js"></script>
         <script src="https://supertestnet.github.io/bitcoin-chess/js/qrcode.js"></script>
         <script src="https://supertestnet.github.io/blind-sig-js/blindSigJS.js"></script>
+        <script src="https://bundle.run/browserify-cipher@1.0.1"></script>
         <script src="https://bundle.run/noble-secp256k1@1.2.14"></script>
         <script src="https://unpkg.com/@cmdcode/tapscript"></script>
         <script src="https://bundle.run/bech32@2.0.0"></script>
@@ -189,7 +190,7 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%,-50%);
-                width: 100%;
+                width: 90%;
                 max-width: 560px;
                 background-color: white;
                 border-radius: 1rem;
@@ -451,9 +452,6 @@
                 var [ type, subId, event ] = JSON.parse( message.data );
                 var { kind, content } = event || {}
                 if ( !event || event === true ) return;
-                if ( kind === 4 ) {
-                    content = await decrypt(privKey, event.pubkey, content);
-                }
                 if ( kind === 0 ) {
                     if ( $_GET[ "multisig" ] ) {
                         await getNote( "ready_to_load_profiles" );
@@ -509,8 +507,328 @@
                         keysets = JSON.parse( keysets )[ "keysets" ];
                         var keyset;
                         keysets.every( item => {if ( isValidHex( item.id ) && item.active ) {keyset = item.id;return;} return true;});
-                        var ecash_outputs = await getEcash( temp_multisig, amount_to_send, keyset );
-                        console.log( ecash_outputs );
+                        var mint_pubkeys = await getData( `https://testnut.cashu.space/v1/keys/${keyset}` );
+                        mint_pubkeys = JSON.parse( mint_pubkeys )[ "keysets" ][ 0 ][ "keys" ];
+                        var ecash_amounts = decomposeAmount( amount_to_send );
+                        Object.keys( mint_pubkeys ).forEach( item => {if ( !ecash_amounts.includes( Number( item ) ) ) delete mint_pubkeys[ item ] });
+                        var ecash_outputs = await getEcash( temp_multisig, ecash_amounts, keyset );
+                        var datum = JSON.stringify({"amount": amount_to_send, "unit": "sat"});
+                        var invoice_data = await postData( `https://testnut.cashu.space/v1/mint/quote/bolt11`, datum, "application/json" );
+                        invoice_data = JSON.parse( invoice_data );
+                        var quote_id = invoice_data[ "quote" ];
+                        var invoice = invoice_data[ "request" ];
+                        var is_paid_info = await getData( `https://testnut.cashu.space/v1/mint/quote/bolt11/${quote_id}` );
+                        is_paid = JSON.parse( is_paid_info )[ "paid" ];
+                        if ( !is_paid ) return console.log( "is paid, right?", is_paid );
+                        var stripped_ecash_outputs = [];
+                        Object.keys( ecash_outputs ).forEach( ( item, index ) => {
+                            stripped_ecash_outputs.push({
+                                "amount": ecash_outputs[ item ][ "amount" ],
+                                "id": ecash_outputs[ item ][ "id" ],
+                                "B_": ecash_outputs[ item ][ "B_" ],
+                            });
+                        });
+                        var sig_request = {
+                            "quote": quote_id,
+                            "outputs": stripped_ecash_outputs,
+                        }
+                        var blinded_sigs = await postData( `https://testnut.cashu.space/v1/mint/bolt11`, JSON.stringify( sig_request ), "application/json" );
+                        blinded_sigs = JSON.parse( blinded_sigs );
+                        var sig_pairs = [];
+                        var inputs = [];
+                        blinded_sigs[ "signatures" ].forEach( item => {
+                            var blinded_sig = item[ "C_" ];
+                            var mint_pubkey = mint_pubkeys[ String( item[ "amount" ] ) ];
+                            var mint_pubkey_point = nobleSecp256k1.Point.fromCompressedHex( hexToBytes( mint_pubkey ) );
+                            var C_ = nobleSecp256k1.Point.fromCompressedHex( hexToBytes( blinded_sig ) );
+                            var message = ecash_outputs[ `num_${item[ "amount" ]}` ][ "message" ];
+                            var {C, secret} = message.unblindSignature( C_, mint_pubkey_point );
+                            var compressed_C = getCompressedPubkeyHexFromUncompressedPubkeyHex( blindSigJS.ecPointToHex( C ) );
+                            sig_pairs.push({
+                                amount: item[ "amount" ],
+                                blinded_sig,
+                                mint_pubkey,
+                                unblinded_sig: compressed_C,
+                            });
+                            var input = {
+                                id: keyset,
+                                amount: item[ "amount" ],
+                                secret: ecash_outputs[ `num_${item[ "amount" ]}` ][ "secret_for_message" ],
+                                C: compressed_C,
+                            }
+                            inputs.push( input );
+                        });
+                        console.log( "sig pairs" );
+                        console.log( sig_pairs );
+                        console.log( "inputs" );
+                        console.log( inputs );
+                        var amount_i_want = amount_to_send;
+                        var eleventh_secret_for_message = bytesToHex( blindSigJS.getRand( 32 ) );
+                        var eleventh_message = new blindSigJS.bsjMsg();
+                        var eleventh_B_ = await eleventh_message.createBlindedMessageFromString( eleventh_secret_for_message );
+                        var eleventh_output_B_hex = blindSigJS.ecPointToHex( eleventh_B_ );
+                        var msghash = sha256( hexToBytes( eleventh_output_B_hex ) );
+                        var tenth_privkey_for_message = prompt( `Enter one of the nsecs` );
+                        tenth_privkey_for_message = privkeyFromNsec( tenth_privkey_for_message );
+                        var eleventh_output_sig = await nobleSecp256k1.schnorr.sign( msghash, tenth_privkey_for_message );
+                        eleventh_output_sig = bytesToHex( eleventh_output_sig );
+                        var tenth_privkey_2_for_message = prompt( `Enter another one of the nsecs` );
+                        tenth_privkey_2_for_message = privkeyFromNsec( tenth_privkey_2_for_message );
+                        var eleventh_output_sig_2 = await nobleSecp256k1.schnorr.sign( msghash, tenth_privkey_2_for_message );
+                        eleventh_output_sig_2 = bytesToHex( eleventh_output_sig_2 );
+                        var eleventh_output = {
+                            "amount": amount_i_want,
+                            "id": keyset,
+                            "B_": eleventh_output_B_hex,
+                            "witness": JSON.stringify({
+                                "signatures":
+                                [
+                                    eleventh_output_sig,
+                                    eleventh_output_sig_2
+                                ]
+                            })
+                        }
+                        //TODO: make getEcashInputs automatically fail if the amount I want
+                        //to send is less than the amount I have, else add my ecash inputs
+                        //together to obtain an amount *greater than or equal to* the amount
+                        //I want to send, then -- if the amount is greater than the amount I
+                        //want to send -- use swaps to get an amount that is equal, then
+                        //return the resulting set of inputs
+                        /*
+                            regarding "use swaps to get an amount that is equal," here is a
+                            procedure for that.
+                            Suppose I have 14 as 1, 1, 2, 2, 8, and I want to send 13 total,
+                            which decomposes to 1, 4, 8. My first step is to turn my
+                            amounts into the largest denominations available. I have a
+                            function called recomposeAmount which tells me what amounts I
+                            need to get to, so, for example, if I pass in [1, 1, 2, 2, 8 ]
+                            it will tell me I need to get to [2, 4, 8]. From there I can
+                            compare the biggest number in "what I need to get to" with the
+                            biggest number in "what I currently have." If they are the same,
+                            I can ignore that number. If "what I need to get to" is larger
+                            than "what I currently have" then I should, starting with my
+                            smallest input, continually add them together til they are
+                            greater than or equal to the amount I need to get to, then, if
+                            they're greater, turn the difference into powers of two, then
+                            do a swap that converts the resuting set of inputs into the
+                            number I need to get to and some change. Then I can ignore the
+                            biggest number and repeat with the next biggest number. Loop
+                            until I have 8, 4, 2.
+                            Once I have 8, 4, 2 I need to compare the amounts I want to
+                            send with the amounts I have. Again, I start by comparing the
+                            top numbers in each set. If they are the same, I can ignore that
+                            number. If "what I have" is larger than "what I need to get to"
+                            then, starting with the largest remaining input in "what I have"
+                            (after ignoring the numbers that were ignored previously), I
+                            should halve it and duplicate the two halves (thus, for example,
+                            turning 8 into 4, 4) and check if the first half is equal to
+                            what I need to get to. If not, repeat with the first half til one
+                            of its "children" is the same size as what I need to get to.
+                            Then take all of its parents and siblings and add them to the
+                            set of "what I have" and add the matching number to the set of
+                            "what I will spend" and repeat. Eventually this should get me
+                            a set of proofs that exactly equal the amount I want to send,
+                            and the remaining change should just be available for whatever
+                            I want to do next.
+                            
+                            (async () => {
+                                var my_holdings = [{amount: 2}, {amount: 2}, {amount: 2}, {amount: 2}, {amount: 4}, {amount: 4}, {amount: 8}, {amount: 8}, {amount: 8}, {amount: 2}, {amount: 4}, {amount: 64}];
+                                my_holdings = split_array( my_holdings );
+                                var keysets = await getData( `https://testnut.cashu.space/v1/keysets` );
+                                keysets = JSON.parse( keysets )[ "keysets" ];
+                                var keyset;
+                                keysets.every( item => {if ( isValidHex( item.id ) && item.active ) {keyset = item.id;return;} return true;});
+                                var temp_multisig = [...multisig];
+                                temp_multisig.splice( 0, 1 );
+                                var inputs_i_have_obj = await getEcash( temp_multisig, [2, 4, 64], keyset );
+                                var inputs_i_have = [];
+                                Object.keys( inputs_i_have_obj ).forEach( item => inputs_i_have.push( inputs_i_have_obj[ item ] ) );
+                                inputs_i_have.forEach( ( item, index ) => {
+                                    inputs_i_have[ index ][ "message" ][ "B_" ] = blindSigJS.ecPointToHex( item[ "message" ][ "B_" ] );
+                                    inputs_i_have[ index ][ "message" ][ "Y" ] = blindSigJS.ecPointToHex( item[ "message" ][ "Y" ] );
+                                    inputs_i_have[ index ][ "message" ][ "rG" ] = blindSigJS.ecPointToHex( item[ "message" ][ "rG" ] );
+                                    inputs_i_have[ index ][ "message" ][ "r" ] = blindSigJS.bigIntToHex( item[ "message" ][ "r" ] );
+                                });
+                                var array_of_subarrays = [ JSON.parse( JSON.stringify( inputs_i_have ) ) ];
+                                var amts_to_recompose = [];
+                                inputs_i_have.forEach( input => amts_to_recompose.push( input.amount ) );
+                                var amts_i_need = recomposeAmount( amts_to_recompose );
+                                var inputs_i_need = [];
+                                amts_i_need.forEach( item => inputs_i_need.push({amount: item}));
+                                inputs_i_have.sort( ( a, b ) => b.amount - a.amount );
+                                inputs_i_need.sort( ( a, b ) => b.amount - a.amount );
+                                // console.log( "inputs_i_need:", JSON.parse( JSON.stringify( inputs_i_need ) ) );
+                                var inputs_to_use = [];
+                                var i; for ( i=0; i<inputs_i_have.length; i++ ) {
+                                    if ( inputs_i_have[ i ].amount == inputs_i_need[ i ].amount ) {
+                                        inputs_to_use.push( inputs_i_have[ i ] );
+                                        inputs_i_have.splice( 0, 1 );
+                                        inputs_i_need.splice( 0, 1 );
+                                        i = i - 1;
+                                    } else {
+                                        var amt_i_need = inputs_i_need[ 0 ].amount;
+                                        var sum = 0;
+                                        var inputs_to_swap = [];
+                                        var other_ordered = JSON.parse( JSON.stringify( inputs_i_have ) );
+                                        other_ordered.reverse();
+                                        var change_needed = [];
+                                        //this loop starts from the smallest outputs I have and keeps on
+                                        //adding more and more of them to an array til I have an amount
+                                        //of outputs whose sum is equal to or greater than the amount I
+                                        //need in order to create this expenditure
+                                        var j; for ( j=0; j<other_ordered.length; j++ ) {
+                                            var index = j;
+                                            var item = other_ordered[ j ];
+                                            sum = sum + item.amount;
+                                            inputs_to_swap.push( item );
+                                            inputs_i_have.splice( inputs_i_have.length - 1 - index, 1 );
+                                            other_ordered.splice( index, 1 );
+                                            j = j - 1;
+                                            if ( sum == amt_i_need ) break;
+                                            if ( sum > amt_i_need ) change_needed = decomposeAmount( sum - amt_i_need );
+                                            if ( sum > amt_i_need ) break;
+                                        }
+                                        //TODO: fix the problem which I outline in the following lines: I must get
+                                        //some change outputs sometimes, and when I run the getEcash function, it
+                                        //will not actually get them for me -- it just prepares outputs that I
+                                        //can request from the mint and pay for with other ecash or via lightning.
+                                        //But I immediately add those as-yet-unpaid-for inputs to other_ordered
+                                        //and use them to get the amounts I need. Somehow I need to mark these
+                                        //outputs as "virtual" and keep track of what children they pay for (if
+                                        //any) and ensure the multisig votes to create them *before* using them
+                                        //to create more ecash.
+                                        //I think I can do this by creating an array of subarrays. The first sub-
+                                        //array should say what inputs I will use, so that if we get more
+                                        //contributions before everyone votes, it won't affect much. The second
+                                        //subarray should specify the "second state" of other_ordered and
+                                        //everyone should vote to create that one first. The third subarray should
+                                        //specify the "third state" of other_ordered and so on.
+                                        var change_inputs_obj = await getEcash( temp_multisig, change_needed, keyset );
+                                        var change_inputs = [];
+                                        Object.keys( change_inputs_obj ).forEach( item => change_inputs.push( change_inputs_obj[ item ] ) );
+                                        //I am about to swap inputs_to_swap for an output with a value
+                                        //equal to amt_i_need, but first I need to add change_inputs back
+                                        //into other_ordered and inputs_i_have so I can use them to make
+                                        //more change if needed
+                                        other_ordered.push( ...change_inputs );
+                                        other_ordered.sort( ( a, b ) => a.amount - b.amount );
+                                        inputs_i_have.push( ...change_inputs );
+                                        inputs_i_have.sort( ( a, b ) => b.amount - a.amount );
+                                        //TODO: do the swap here before proceeding, trading the inputs_to_swap
+                                        //for an input whose value is equal to amt_i_need.
+                                        var swapped_inputs_obj = await getEcash( temp_multisig, [amt_i_need], keyset );
+                                        var swapped_inputs = [];
+                                        Object.keys( swapped_inputs_obj ).forEach( item => swapped_inputs.push( swapped_inputs_obj[ item ] ) );
+                                        inputs_to_use.push( ...swapped_inputs );
+                                        array_of_subarrays.push( JSON.parse( JSON.stringify( [ inputs_i_have, inputs_to_use ] ) ) );
+                                        inputs_i_need.splice( 0, 1 );
+                                        i = i - 1;
+                                    }
+                                }
+                                console.log( "array_of_subarrays" );
+                                console.log( array_of_subarrays );
+                                inputs_i_have.push( ...inputs_to_use );
+                                inputs_i_have.sort( ( a, b ) => b.amount - a.amount );
+                                var amount_i_want_to_send = 13;
+                                var amts_to_send = decomposeAmount( amount_i_want_to_send );
+                                var inputs_i_need = [];
+                                amts_to_send.forEach( item => inputs_i_need.push({amount: item}) );
+                                console.log( "inputs i need" );
+                                console.log( JSON.parse( JSON.stringify( inputs_i_need ) ) );
+                                inputs_to_use = [];
+                                var i; for ( i=0; i<inputs_i_have.length; i++ ) {
+                                    if ( inputs_i_have[ i ].amount == inputs_i_need[ i ].amount ) {
+                                        inputs_to_use.push( inputs_i_have[ i ] );
+                                        inputs_i_have.splice( 0, 1 );
+                                        inputs_i_need.splice( 0, 1 );
+                                        i = i - 1;
+                                    } else {
+                                        var [ match, siblings_and_parents ] = split_and_repeat( inputs_i_have[ i ], inputs_i_need[ i ].amount, [] );
+                                        inputs_to_use.push( match );
+                                        inputs_i_need.splice( 0, 1 );
+                                        inputs_i_have.splice( 0, 1 );
+                                        inputs_i_have.splice( 0, 0, ...siblings_and_parents );
+                                        inputs_i_have.sort( ( a, b ) => b.amount - a.amount );
+                                        i = i - 1;
+                                    }
+                                    var sum_of_inputs_to_use = 0;
+                                    inputs_to_use.forEach( item => sum_of_inputs_to_use = sum_of_inputs_to_use + item.amount );
+                                    if ( sum_of_inputs_to_use == amount_i_want_to_send ) break;
+                                }
+                                console.log( 2, "inputs_to_use" );
+                                console.log( JSON.parse( JSON.stringify( inputs_to_use ) ) );
+                                console.log( 3, "inputs_i_have" );
+                                console.log( JSON.parse( JSON.stringify( inputs_i_have ) ) );
+                            })();
+                        */
+                        var new_inputs = getEcashInputs( amount_i_want, inputs );
+                        var i; for ( i=0; i<new_inputs.length; i++ ) {
+                            var input = new_inputs[ i ];
+                            var msghash = sha256( input[ "secret" ] );
+                            var sig_1 = await nobleSecp256k1.schnorr.sign( msghash, tenth_privkey_for_message );
+                            sig_1 = bytesToHex( sig_1 );
+                            var sig_2 = await nobleSecp256k1.schnorr.sign( msghash, tenth_privkey_2_for_message );
+                            sig_2 = bytesToHex( sig_2 );
+                            input.witness = JSON.stringify({
+                                "signatures":
+                                [
+                                    sig_1,
+                                    sig_2,
+                                ]
+                            });
+                        }
+                        var eleventh_swap_data = {
+                            "inputs": new_inputs,
+                            "outputs": [eleventh_output],
+                        }
+                        console.log( eleventh_swap_data );
+                        var eleventh_blinded_sigs = await postData( `https://testnut.cashu.space/v1/swap`, JSON.stringify( eleventh_swap_data ), "application/json" );
+                        var eleventh_blinded_sig = JSON.parse( eleventh_blinded_sigs )[ "signatures" ][ 0 ][ "C_" ];
+                        console.log( "eleventh_blinded_sig:", eleventh_blinded_sig );
+                        var eleventh_C_ = nobleSecp256k1.Point.fromCompressedHex( hexToBytes( eleventh_blinded_sig ) );
+                        var mint_pubkey = mint_pubkeys[ String( amount_i_want ) ];
+                        var mint_pubkey_point = nobleSecp256k1.Point.fromCompressedHex( hexToBytes( mint_pubkey ) );
+                        var {C, secret} = eleventh_message.unblindSignature( eleventh_C_, mint_pubkey_point );
+                        var eleventh_C = C;
+                        var eleventh_secret = secret;
+                        var eleventh_compressed_C = getCompressedPubkeyHexFromUncompressedPubkeyHex( blindSigJS.ecPointToHex( eleventh_C ) );
+                        var eleventh_input = {
+                            id: keyset,
+                            amount: amount_i_want,
+                            secret: eleventh_secret_for_message,
+                            C: eleventh_compressed_C,
+                        }
+
+                        //swap a twelfth time
+
+                        var twelfth_secret_for_message = bytesToHex( blindSigJS.getRand( 32 ) );
+                        var twelfth_message = new blindSigJS.bsjMsg();
+                        var twelfth_B_ = await twelfth_message.createBlindedMessageFromString( twelfth_secret_for_message );
+                        var twelfth_output_B_hex = blindSigJS.ecPointToHex( twelfth_B_ );
+                        var twelfth_output = {
+                            "amount": amount_i_want,
+                            "id": keyset,
+                            "B_": twelfth_output_B_hex,
+                        }
+                        var twelfth_swap_data = {
+                            "inputs": [eleventh_input],
+                            "outputs": [twelfth_output],
+                        }
+                        var twelfth_blinded_sigs = await postData( `https://testnut.cashu.space/v1/swap`, JSON.stringify( twelfth_swap_data ), "application/json" );
+                        var twelfth_blinded_sig = JSON.parse( twelfth_blinded_sigs )[ "signatures" ][ 0 ][ "C_" ];
+                        console.log( "twelfth_blinded_sig:", twelfth_blinded_sig );
+                        var twelfth_C_ = nobleSecp256k1.Point.fromCompressedHex( hexToBytes( twelfth_blinded_sig ) );
+                        var {C, secret} = twelfth_message.unblindSignature( twelfth_C_, mint_pubkey_point );
+                        var twelfth_C = C;
+                        var twelfth_secret = secret;
+                        var twelfth_compressed_C = getCompressedPubkeyHexFromUncompressedPubkeyHex( blindSigJS.ecPointToHex( twelfth_C ) );
+                        var twelfth_input = {
+                            id: keyset,
+                            amount: amount_i_want,
+                            secret: twelfth_secret_for_message,
+                            C: twelfth_compressed_C,
+                        }
+                        console.log( "twelfth_input:", twelfth_input );
                     }
                     var url = "bitcoin:" + multisig_address;
                     var a = document.createElement( "a" );
@@ -530,6 +848,7 @@
                                     <div class="menu_cprops">Current proposals [<span class="cprops">0</span>]</div>
                                     <div class="menu_pprops">Past proposals [<span class="pprops">0</span>]</div>
                                     <div class="menu_login_or_create">Login</div>
+                                    <div class="menu_easy_sign_in hidden">Easy sign in</div>
                                 </div>
                             </div>
                         </div>
@@ -605,7 +924,44 @@
                         if ( $( '.past_proposals .proposal_div' ) ) $( '.no_past_proposals' ).style.display = "none"; else $( '.no_past_proposals' ).style.display = "block";
                         showPage( "past_proposals" );
                     }
-                    $( '.menu_login_or_create' ).onclick = () => {
+                    $( '.menu_easy_sign_in' ).onclick = () => {
+                        if ( $_GET[ "easy_sign_in" ] ) {
+                            $( '.instructions_for_easy_sign_in' ).classList.add( "hidden" );
+                            $( '.alternative_instructions_for_easy_sign_in' ).classList.remove( "hidden" );
+                        }
+                        showPage( "easy_sign_in" );
+                    }
+                    $( '.menu_login_or_create' ).onclick = async () => {
+                        if ( $_GET[ "easy_sign_in" ] && !$( '.menu_login_or_create' ).innerText.includes( "Craft" ) ) {
+                            sessionStorage.removeItem( "easy_sign_in_username" );
+                            sessionStorage.removeItem( "easy_sign_in_password" );
+                            showModal( `
+                                <p style="font-weight: bold">Username</p>
+                                <p><input style="width: 90%;" class="easy_sign_in_username"></p>
+                                <p style="font-weight: bold">Password</p>
+                                <p><input style="width: 90%;" type="password" class="easy_sign_in_password"></p>
+                                <p><button class="submit_easy_name_and_pw" onclick="sessionStorage[ 'easy_sign_in_username' ] = $( '.easy_sign_in_username' ).value;sessionStorage[ 'easy_sign_in_password' ] = $( '.easy_sign_in_password' ).value;modalVanish();">Submit</button></p>
+                            ` );
+                            var username = await getNote( "easy_sign_in_username" );
+                            var password = await getNote( "easy_sign_in_password" );
+                            sessionStorage.removeItem( "easy_sign_in_username" );
+                            sessionStorage.removeItem( "easy_sign_in_password" );
+                            var hashable = String( username ) + String( password );
+                            console.log( hashable );
+                            hashable = hexToBytes( textToHex( hashable ) );
+                            var sign_in_privkey = bytesToHex( sha256( hashable ) );
+                            var sign_in_pubkey = nobleSecp256k1.getPublicKey( sign_in_privkey, true ).substring( 2 );
+                            var bech32_encoded_encrypted_privkey = $_GET[ "easy_sign_in" ];
+                            var decoded_encrypted_privkey = hexToText( Buffer.from( bech32.bech32m.fromWords( bech32.bech32m.decode( bech32_encoded_encrypted_privkey, 10000 ).words ) ).toString( "hex" ) );
+                            try {
+                                var my_decrypted_privkey = decrypt( sign_in_privkey, sign_in_pubkey, decoded_encrypted_privkey );
+                            } catch( e ) {
+                                console.log( e );
+                                var url = window.location.href.substring( 0, window.location.href.indexOf( "&" ) );
+                                return showModal( `<p>Your username and password did not work. Try again or visit the following link and sign in with your nsec</p><p><a href="${url}">${url}</a></p>` );
+                            }
+                            return login_fn( my_decrypted_privkey );
+                        }
                         if ( $( '.proposal_desc' ) ) {
                             $( '.proposal_desc' ).value = "";
                             $( '.statement' ).value = "";
@@ -1488,31 +1844,30 @@
                 return dataUriPngImage;
             }
             var showPage = ( page ) => {
-                if ( page == "login_form" && !sessionStorage.myprivkey ) {
-                    login_fn();
-                    return;
-                }
+                if ( page == "login_form" && !sessionStorage.myprivkey ) return login_fn();
                 $( '.members' ).style.display = "none";
                 $( '.balance' ).style.display = "none";
                 $( '.statements' ).style.display = "none";
                 $( '.current_proposals' ).style.display = "none";
                 $( '.past_proposals' ).style.display = "none";
+                $( '.easy_sign_in' ).style.display = "none";
                 $( '.crafter' ).style.display = "none";
                 if ( sessionStorage.myprivkey && page == "login_form" ) page = "crafter";
                 $( `.${page}` ).style.display = "block";
+                $( `.${page}` ).classList.remove( "hidden" );
             }
-            var login_fn = () => {
-                var nsec = prompt( "Enter your nsec" );
-                if ( !nsec ) return;
-                var myprivkey = privkeyFromNsec( nsec );
-                var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
-                if ( !multisig.includes( mypubkey ) ) {
-                    showModal( "Sorry, it looks like you are not a keyholder in this bitpac" );
-                    return;
+            var login_fn = myprivkey => {
+                if ( !myprivkey ) {
+                    var nsec = prompt( "Enter your nsec" );
+                    if ( !nsec ) return;
+                    var myprivkey = privkeyFromNsec( nsec );
                 }
+                var mypubkey = nobleSecp256k1.getPublicKey( myprivkey, true ).substring( 2 );
+                if ( !multisig.includes( mypubkey ) ) return showModal( "Sorry, it looks like you are not a keyholder in this bitpac" );
                 sessionStorage[ "myprivkey" ] = myprivkey;
                 sessionStorage[ "mypubkey" ] = mypubkey;
                 $( '.menu_login_or_create' ).innerText = "Craft proposal";
+                $( '.menu_easy_sign_in' ).classList.remove( "hidden" );                
                 $$( '.current_proposals .approve_or_deny' ).forEach( item => {
                     item.style.display = "block";
                 });
@@ -1625,6 +1980,8 @@
                 if ( data != "Transaction not found" ) return true;
             }
             sessionStorage.removeItem( "ready_to_load_profiles" );
+            sessionStorage.removeItem( "easy_sign_in_username" );
+            sessionStorage.removeItem( "easy_sign_in_password" );
             async function getNote( item ) {
                 async function isNoteSetYet( note_i_seek ) {
                     return new Promise( function( resolve, reject ) {
@@ -1715,35 +2072,39 @@
                 padding = padding.slice( -Math.abs( length ) );
                 return ( padding === h );
             }
-            var getEcash = async ( temp_multisig, amount, keyset ) => {
-                var ecash_amounts = decomposeAmount( amount );
-                var i; for ( i=0; i<ecash_amounts.length; i++ )
-                var nonce_for_message = bytesToHex( blindSigJS.getRand( 16 ) );
-                var pubkeys_tag = [ "pubkeys" ];
-                var first_pubkey = "02" + temp_multisig[ 0 ];
-                temp_multisig.forEach( ( item, index ) => {if ( index ) pubkeys_tag.push( "02" + item )});
-                var secret_for_message = [
-                    "P2PK",
-                    {
-                        "nonce": nonce_for_message,
-                        "data": first_pubkey,
-                        "tags": [
-                            [ "sigflag", "SIG_ALL" ],
-                            [ "n_sigs", String( threshold ) ],
-                            pubkeys_tag,
-                        ],
+            var getEcash = async ( temp_multisig, ecash_amounts, keyset ) => {
+                var outputs = {}
+                var i; for ( i=0; i<ecash_amounts.length; i++ ) {
+                    var nonce_for_message = bytesToHex( blindSigJS.getRand( 16 ) );
+                    var pubkeys_tag = [ "pubkeys" ];
+                    var first_pubkey = "02" + temp_multisig[ 0 ];
+                    temp_multisig.forEach( ( item, index ) => {if ( index ) pubkeys_tag.push( "02" + item )});
+                    var secret_for_message = [
+                        "P2PK",
+                        {
+                            "nonce": nonce_for_message,
+                            "data": first_pubkey,
+                            "tags": [
+                                [ "sigflag", "SIG_ALL" ],
+                                [ "n_sigs", String( threshold ) ],
+                                pubkeys_tag,
+                            ],
+                        }
+                    ];
+                    secret_for_message = JSON.stringify( secret_for_message );
+                    var message = new blindSigJS.bsjMsg();
+                    var B_ = await message.createBlindedMessageFromString( secret_for_message );
+                    var output_B_hex = blindSigJS.ecPointToHex( B_ );
+                    var output = {
+                        "amount": ecash_amounts[ i ],
+                        "id": keyset,
+                        "B_": output_B_hex,
+                        message,
+                        secret_for_message,
                     }
-                ];
-                secret_for_message = JSON.stringify( secret_for_message );
-                var message = new blindSigJS.bsjMsg();
-                var B_ = await message.createBlindedMessageFromString( secret_for_message );
-                var output_B_hex = blindSigJS.ecPointToHex( B_ );
-                var output = {
-                    "amount": amount,
-                    "id": keyset,
-                    "B_": output_B_hex,
+                    outputs[ `num_${ecash_amounts[ i ]}` ] = output;
                 }
-                return output;
+                return outputs;
             }
             var decomposeAmount = amount_to_decompose => {
                 var decomposed = [];
@@ -1757,10 +2118,115 @@
                 inner_fn( amount_to_decompose );
                 return decomposed;
             }
+            var recomposeAmount = amounts_to_recompose => {
+                var recomposed = [];
+                var sum = 0;
+                amounts_to_recompose.forEach( item => sum = sum + item );
+                return decomposeAmount( sum );
+            }
             var resizer = async () => {
                 if ( $( '.profile .pic' ) ) $$( '.profile .pic' ).forEach( item => {item.style.height = item.offsetWidth + "px"});
                 await waitSomeSeconds( 0.05 );
                 resizer();
+            }
+            var hexToBytes = hex => Uint8Array.from( hex.match( /.{1,2}/g ).map( byte => parseInt( byte, 16 ) ) );
+            function getCompressedPubkeyHexFromUncompressedPubkeyHex( pubkeyhex ) {
+                return bitcoinjs.ECPair.fromPublicKey( Buffer.from( pubkeyhex, "hex" ) ).publicKey.toString( "hex" );
+            }
+            var getEcashInputs = ( amt, ecash_inputs ) => {
+                var input;
+                ecash_inputs.every( item => {
+                    if ( item[ "amount" ] == amt ) return input = item;
+                    return true;
+                });
+                return [input];
+            }
+            var split_input = input => {
+                var new_amt = Math.floor( input.amount / 2 );
+                return [{amount: new_amt}, {amount: new_amt}];
+            }
+            var split_and_repeat = ( input, target, siblings_and_parents ) => {
+                if ( !input.amount ) return alert( `error` );
+                if ( input.amount == target ) return [ input, siblings_and_parents ];
+                var halves = split_input( input );
+                siblings_and_parents.push( halves[ 1 ] );
+                return split_and_repeat( halves[ 0 ], target, siblings_and_parents );
+            }
+            blindSigJS.ecHexToPoint = hex => nobleSecp256k1.Point.fromHex( hex );
+            blindSigJS.bigIntToHex = bigInt => bigInt.toString( 16 );
+            blindSigJS.hexToBigInt = hex => BigInt( `0x${hex}` );
+            var containsDuplicates = array => {array = array.map( JSON.stringify ); return array.length !== new Set(array).size}
+            var arr_includes_obj = ( obj, arr ) => {
+                var included = false;
+                var i; for ( i=0; i<arr.length; i++ ) {
+                    var item = arr[ i ];
+                    if ( obj.amount == item.amount ) {included = true;break;}
+                }
+                return included;
+            }
+            var split_array = outer_array => {
+                var array_of_arrays = [[]];
+                var skip_til = 0;
+                var array_splitter = ( array, skip_til ) => {
+                    var item = array.splice( skip_til, 1 )[ 0 ];
+                    if ( !arr_includes_obj( item, array ) ) {
+                        array.unshift( item );
+                        skip_til = skip_til + 1;
+                    } else {
+                        array_of_arrays.every( ( arr, index ) => {
+                            if ( !arr_includes_obj( item, arr ) ) {array_of_arrays[ index ].push( item );}
+                            else array_of_arrays.push( [item] );
+                        });
+                    }
+                    if ( array.length && containsDuplicates( array ) ) array_splitter( array, skip_til );
+                    else if ( array.length ) array_of_arrays.push( array );
+                }
+                array_splitter( outer_array, skip_til );
+                array_of_arrays.forEach( item => item.sort( (a,b)=>a.amount-b.amount));
+                return array_of_arrays;
+            }
+            function textToHex( text ) {
+                var encoder = new TextEncoder().encode( text );
+                return [...new Uint8Array(encoder)]
+                    .map( x => x.toString( 16 ).padStart( 2, "0" ) )
+                    .join( "" );
+            }
+            function hexToText( hex ) {
+                var bytes = new Uint8Array(Math.ceil(hex.length / 2));
+                for (var i = 0; i < hex.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+                var text = new TextDecoder().decode( bytes );
+                return text;
+            }
+            function base64ToHex( str ) {
+                var raw = atob( str );
+                var result = '';
+                var i; for ( i=0; i<raw.length; i++ ) {
+                    var hex = raw.charCodeAt( i ).toString( 16 );
+                    result += ( hex.length === 2 ? hex : '0' + hex );
+                }
+                return result;
+            }
+            function encrypt( privkey, pubkey, text ) {
+                var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
+                var iv = window.crypto.getRandomValues(new Uint8Array(16));
+                var cipher = browserifyCipher.createCipheriv( 'aes-256-cbc', hexToBytes( key ), iv );
+                var encryptedMessage = cipher.update(text,"utf8","base64");
+                emsg = encryptedMessage + cipher.final( "base64" );
+                var uint8View = new Uint8Array( iv.buffer );
+                var decoder = new TextDecoder();
+                return emsg + "?iv=" + btoa( String.fromCharCode.apply( null, uint8View ) );
+            }
+            function decrypt( privkey, pubkey, ciphertext ) {
+                var [ emsg, iv ] = ciphertext.split( "?iv=" );
+                var key = nobleSecp256k1.getSharedSecret( privkey, '02' + pubkey, true ).substring( 2 );
+                var decipher = browserifyCipher.createDecipheriv(
+                    'aes-256-cbc',
+                    hexToBytes( key ),
+                    hexToBytes( base64ToHex( iv ) )
+                );
+                var decryptedMessage = decipher.update( emsg, "base64" );
+                dmsg = decryptedMessage + decipher.final( "utf8" );
+                return dmsg;
             }
         </script>
     </head>
@@ -1784,7 +2250,31 @@
         <div class="multisig_viewer">
             <div class="loading">Loading<span class="dots">.</span></div>
         </div>
+        <div class="easy_sign_in hidden">
+            <h2>Easy sign in</h2>
+            <p class="instructions_for_easy_sign_in">With bitpac, you don't need to copy/paste your nsec into the page every time you want to log in. You can create an "easy sign in" link where you just have to visit the link and then enter a username/password to access your bitpac. Create one below!</p>
+            <p class="alternative_instructions_for_easy_sign_in hidden">Create a new easy sign in username and password below (but know that your old link will still work with your old username and password)</p>
+            <h2>Desired username</h2>
+            <p><input class="username"></p>
+            <h2>Desired password</h2>
+            <p><input type="password" class="password"></p>
+            <p><button class="submit_easy_sign_in">Submit</button></p>
+        </div>
         <script>
+            $( '.submit_easy_sign_in' ).onclick = () => {
+                var username = $( '.username' ).value;
+                var password = $( '.password' ).value;
+                if ( !username ) return showModal( `You forgot to enter a username, please try again` );
+                if ( !password ) return showModal( `You forgot to enter a password, please try again` );
+                var hashable = String( username ) + String( password );
+                hashable = hexToBytes( textToHex( hashable ) );
+                var sign_in_privkey = bytesToHex( sha256( hashable ) );
+                var sign_in_pubkey = nobleSecp256k1.getPublicKey( sign_in_privkey, true ).substring( 2 );
+                var my_encrypted_privkey = encrypt( sign_in_privkey, sign_in_pubkey, sessionStorage[ "myprivkey" ] );
+                var bech32_encoded_encrypted_privkey = bech32.bech32m.encode( "esi", bech32.bech32m.toWords( Buffer.from( textToHex( my_encrypted_privkey ), "hex" ) ), 10000 );
+                var url = window.location.href + "&easy_sign_in=" + bech32_encoded_encrypted_privkey;
+                showModal( `<p>Here is your easy sign in link:</p><p><a href="${url}">${url}</a></p><p>Just click it and then click Login. You'll never need to copy/paste your nsec again if you use that link and remember your username and password!</p>` );
+            }
             var init = async () => {
                 resizer();
                 dotLoop( "." );
